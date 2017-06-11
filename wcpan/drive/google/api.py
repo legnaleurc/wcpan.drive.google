@@ -199,7 +199,7 @@ class Files(object):
 
         uri = self._root + '/' + file_id
         rv = await self._client._do_request('GET', uri, args, headers=headers,
-                                            consumer=consumer)
+                                            consumer=consumer, timeout=3600.0)
         return rv
 
     async def initiate_uploading(self, file_name: str, total_file_size: int,
