@@ -8,14 +8,12 @@ import threading
 from . import util as u
 
 
-SQL_CREATE_TABLE_METADATA = '''
+SQL_CREATE_TABLES = '''
     CREATE TABLE metadata (
         key VARCHAR(64) NOT NULL,
         value VARCHAR(4096),
         PRIMARY KEY (key)
     );
-'''
-SQL_CREATE_TABLE_NODES = '''
     CREATE TABLE nodes (
         id VARCHAR(32) NOT NULL,
         name VARCHAR(4096),
@@ -26,9 +24,6 @@ SQL_CREATE_TABLE_NODES = '''
         UNIQUE (id),
         CHECK (status IN ('AVAILABLE', 'TRASH'))
     );
-    CREATE INDEX ix_nodes_names ON nodes(name);
-'''
-SQL_CREATE_TABLE_FILES = '''
     CREATE TABLE files (
         id VARCHAR(32) NOT NULL,
         md5 VARCHAR(32),
@@ -37,8 +32,6 @@ SQL_CREATE_TABLE_FILES = '''
         UNIQUE (id),
         FOREIGN KEY (id) REFERENCES nodes (id)
     );
-'''
-SQL_CREATE_TABLE_PARENTAGE = '''
     CREATE TABLE parentage (
         parent VARCHAR(32) NOT NULL,
         child VARCHAR(32) NOT NULL,
@@ -46,8 +39,7 @@ SQL_CREATE_TABLE_PARENTAGE = '''
         FOREIGN KEY (child) REFERENCES nodes (id)
     );
     CREATE INDEX ix_parentage_child ON parentage(child);
-'''
-SQL_CREATE_SCHEMA_VERSION = '''
+    CREATE INDEX ix_nodes_names ON nodes(name);
     PRAGMA user_version = 1;
 '''
 
@@ -290,11 +282,7 @@ class Database(object):
     def _try_create(self):
         db = self._get_thread_local_database()
         with ReadWrite(db) as query:
-            query.execute(SQL_CREATE_TABLE_METADATA)
-            query.execute(SQL_CREATE_TABLE_NODES)
-            query.execute(SQL_CREATE_TABLE_FILES)
-            query.execute(SQL_CREATE_TABLE_PARENTAGE)
-            query.execute(SQL_CREATE_SCHEMA_VERSION)
+            query.executescript(SQL_CREATE_TABLES)
 
     def _migrate(self, version):
         raise NotImplementedError()
