@@ -4,7 +4,7 @@ import random
 import urllib.parse as up
 
 from tornado import httpclient as thc, httputil as thu, gen as tg
-from wcpan.logger import DEBUG, EXCEPTION
+from wcpan.logger import DEBUG, EXCEPTION, WARNING
 
 from .util import GoogleDriveError
 
@@ -25,9 +25,17 @@ class Network(object):
 
     async def fetch(self, method, path, args=None, headers=None, body=None,
                     consumer=None, timeout=None):
-        await self._maybe_backoff()
-        return await self._do_request(method, path, args, headers, body,
-                                      consumer, timeout)
+        while True:
+            await self._maybe_backoff()
+            try:
+                rv = await self._do_request(method, path, args, headers, body,
+                                            consumer, timeout)
+                return rv
+            except NetworkError as e:
+                if e.status != '599':
+                    raise
+                # timeout error
+                WARNING('wcpan.drive.google') << str(e)
 
     async def _do_request(self, method, path, args, headers, body, consumer,
                           timeout):
