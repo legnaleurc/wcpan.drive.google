@@ -62,7 +62,8 @@ class Database(object):
 
     # TODO close all database
     def close(self):
-        pass
+        db = self._get_thread_local_database()
+        db.close()
 
     def initialize(self):
         try:
