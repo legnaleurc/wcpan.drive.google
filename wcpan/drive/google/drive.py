@@ -113,8 +113,10 @@ class Drive(object):
         if not op.exists(path):
             return False
 
+        complete_path = op.join(path, node.name)
+
         # resume download
-        tmp_path = op.join(path, node.name + '.__tmp__')
+        tmp_path = complete_path + '.__tmp__'
         if op.exists(tmp_path):
             offset = op.getsize(tmp_path)
         else:
@@ -129,7 +131,10 @@ class Drive(object):
             rv = await api.download(file_id=node_id, range_=range_,
                                     consumer=writer)
 
-        # TODO rename it back if completed
+        # rename it back if completed
+        op.rename(tmp_path, complete_path)
+
+        # TODO return md5
 
     # deprecated
     async def upload(self, local_path, parent_node):
