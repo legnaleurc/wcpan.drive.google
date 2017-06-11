@@ -1,10 +1,13 @@
+import concurrent.futures as cf
 import functools as ft
 import hashlib as hl
 import mimetypes
+import multiprocessing as mp
 import os
 import os.path as op
 import re
 
+from tornado import concurrent as tc
 from wcpan.logger import INFO, WARNING, DEBUG
 
 from .api import Client
@@ -17,14 +20,19 @@ FILE_FIELDS = 'id,name,mimeType,trashed,parents,createdTime,modifiedTime,md5Chec
 EMPTY_MD5SUM = 'd41d8cd98f00b204e9800998ecf8427e'
 
 
+off_main_thread = tc.run_on_executor(executor='_pool')
+
+
 class Drive(object):
 
     def __init__(self, settings_path=None):
         self._settings = Settings(settings_path)
         self._client = Client(self._settings)
         self._db = Database(self._settings)
+        self._pool = cf.ThreadPoolExecutor(max_workers=mp.cpu_count())
 
     def close(self):
+        self._pool.shutdown()
         self._db.close()
 
     def initialize(self):
@@ -35,7 +43,7 @@ class Drive(object):
         assert self._client.authorized
 
         try:
-            check_point = self._db.metadata['check_point']
+            check_point = self._db.get_metadata('check_point')
         except KeyError:
             check_point = '1'
 
@@ -73,35 +81,44 @@ class Drive(object):
     def root_node(self):
         return self._db.root_node
 
+    @off_main_thread
     def get_node_by_id(self, node_id):
         return self._db.get_node_by_id(node_id)
 
+    @off_main_thread
     def get_node_by_path(self, path):
         return self._db.get_node_by_path(path)
 
+    @off_main_thread
     def get_path(self, node):
         return self._db.get_path_by_id(node.id_)
 
+    @off_main_thread
     def get_path_by_id(self, node_id):
         return self._db.get_path_by_id(node_id)
 
+    @off_main_thread
     def get_child_by_id(self, node_id, name):
         return self._db.get_child_by_id(node_id, name)
 
+    @off_main_thread
     def get_children(self, node):
         return self._db.get_children_by_id(node.id_)
 
+    @off_main_thread
     def get_children_by_id(self, node_id):
         return self._db.get_children_by_id(node_id)
 
+    @off_main_thread
     def find_nodes_by_regex(self, pattern):
         return self._db.find_nodes_by_regex(pattern)
 
+    @off_main_thread
     def find_duplicate_nodes(self):
         return self._db.find_duplicate_nodes()
 
     async def download_file_by_id(self, node_id, path):
-        node = self.get_node_by_id(node_id)
+        node = await self.get_node_by_id(node_id)
         return await self.download(node, path)
 
     async def download_file(self, node, path):
