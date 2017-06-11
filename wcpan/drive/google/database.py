@@ -238,6 +238,14 @@ class Database(object):
         if not node.name:
             self.set_metadata('root_id', node.id_)
 
+    def find_nodes_by_regex(self, pattern):
+        db = self._get_thread_local_database()
+        with ReadOnly(db) as query:
+            query.execute('SELECT id FROM nodes WHERE name REGEXP ?;', (pattern,))
+            rv = query.fetchall()
+        rv = [self.get_node_by_id(_['id']) for _ in rv]
+        return rv
+
     def find_duplicate_nodes(self):
         db = self._get_thread_local_database()
         with ReadOnly(db) as query:
