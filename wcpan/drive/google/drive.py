@@ -144,27 +144,33 @@ class Drive(object):
             return False
 
         complete_path = op.join(path, node.name)
+        hasher = hl.md5()
 
         # resume download
         tmp_path = complete_path + '.__tmp__'
         if op.exists(tmp_path):
             offset = op.getsize(tmp_path)
+            with open(tmp_path, 'rb') as fin:
+                while True:
+                    chunk = fin.read(65535)
+                    if not chunk:
+                        break
+                    hasher.update(chunk)
         else:
             offset = 0
         range_ = (offset, node.size)
 
         with open(tmp_path, 'ab') as fout:
-            def writer(chunk):
-                fout.write(chunk)
+            writer = ft.partial(file_consumer, fout, hasher)
 
             api = self._client.files
-            rv = await api.download(file_id=node_id, range_=range_,
+            rv = await api.download(file_id=node.id_, range_=range_,
                                     consumer=writer)
 
         # rename it back if completed
         op.rename(tmp_path, complete_path)
 
-        # TODO return md5
+        return local_md5
 
     # deprecated
     async def upload(self, local_path, parent_node):
@@ -375,3 +381,8 @@ async def file_producer(fin, hasher, write):
             break
         hasher.update(chunk)
         await write(chunk)
+
+
+def file_consumer(fout, hasher, chunk):
+    hasher.update(chunk)
+    fout.write(chunk)

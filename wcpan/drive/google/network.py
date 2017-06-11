@@ -195,6 +195,13 @@ class NetworkError(GoogleDriveError):
         return self._response.error
 
 
+def initialize():
+    args = {
+        'max_body_size': 10 * (1024 ** 3),
+    }
+    thc.AsyncHTTPClient.configure(None, **args)
+
+
 def backoff_needed(response):
     if response.status not in BACKOFF_STATUSES:
         return False
@@ -207,3 +214,6 @@ def backoff_needed(response):
             return False
 
     return True
+
+
+initialize()
