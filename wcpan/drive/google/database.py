@@ -3,17 +3,19 @@ import datetime as dt
 import pathlib as pl
 import re
 import sqlite3
+import threading
 
 from . import util as u
 
 
-SQL_CREATE = '''
+SQL_CREATE_TABLE_METADATA = '''
     CREATE TABLE metadata (
         key VARCHAR(64) NOT NULL,
         value VARCHAR(4096),
         PRIMARY KEY (key)
     );
-
+'''
+SQL_CREATE_TABLE_NODES = '''
     CREATE TABLE nodes (
         id VARCHAR(32) NOT NULL,
         name VARCHAR(4096),
@@ -24,7 +26,8 @@ SQL_CREATE = '''
         UNIQUE (id),
         CHECK (status IN ('AVAILABLE', 'TRASH'))
     );
-
+'''
+SQL_CREATE_TABLE_FILES = '''
     CREATE TABLE files (
         id VARCHAR(32) NOT NULL,
         md5 VARCHAR(32),
@@ -33,19 +36,20 @@ SQL_CREATE = '''
         UNIQUE (id),
         FOREIGN KEY (id) REFERENCES nodes (id)
     );
-
+'''
+SQL_CREATE_TABLE_PARENTAGE = '''
     CREATE TABLE parentage (
         parent VARCHAR(32) NOT NULL,
         child VARCHAR(32) NOT NULL,
         PRIMARY KEY (parent, child),
         FOREIGN KEY (child) REFERENCES nodes (id)
     );
-
+'''
+SQL_POST_CREATE = '''
     CREATE INDEX ix_parentage_child ON parentage(child);
     CREATE INDEX ix_nodes_names ON nodes(name);
     PRAGMA user_version = 1;
 '''
-
 
 CURRENT_SCHEMA_VERSION = 1
 
@@ -54,23 +58,20 @@ class Database(object):
 
     def __init__(self, settings):
         self._settings = settings
+        self._tls = threading.local()
 
-        path = settings['nodes_database_file']
-        self._db = sqlite3.connect(path, detect_types=sqlite3.PARSE_DECLTYPES)
-        self._db.row_factory = sqlite3.Row
-        self._db.create_function('REGEXP', 2, sqlite3_regexp)
-
-        self._metadata = Metadata(self._db)
-
+    # TODO close all database
     def close(self):
-        self._db.close()
+        pass
 
     def initialize(self):
         try:
             self._try_create()
         except sqlite3.OperationalError as e:
             pass
-        with ReadOnly(self._db) as query:
+
+        db = self._get_thread_local_database()
+        with ReadOnly(db) as query:
             query.execute('PRAGMA user_version;')
             rv = query.fetchone()
         version = rv[0]
@@ -79,19 +80,33 @@ class Database(object):
             self._migrate(version)
 
     @property
-    def metadata(self):
-        return self._metadata
-
-    @property
     def root_id(self):
-        return self.metadata['root_id']
+        return self.get_metadata('root_id')
 
     @property
     def root_node(self):
         return self.get_node_by_id(self.root_id)
 
+    def get_metadata(self, key):
+        db = self._get_thread_local_database()
+        with ReadOnly(db) as query:
+            query.execute('SELECT value FROM metadata WHERE key = ?;', (key,))
+            rv = query.fetchone()
+        if not rv:
+            raise KeyError
+        return rv['value']
+
+    def set_metadata(self, key, value):
+        db = self._get_thread_local_database()
+        with ReadWrite(db) as query:
+            query.execute('''
+                INSERT OR REPLACE INTO metadata
+                VALUES (?, ?)
+            ;''', (key, value))
+
     def get_node_by_id(self, node_id):
-        with ReadOnly(self._db) as query:
+        db = self._get_thread_local_database()
+        with ReadOnly(db) as query:
             query.execute('''
                 SELECT id, name, status, created, modified
                 FROM nodes
@@ -132,7 +147,8 @@ class Database(object):
 
         node_id = self.root_id
         parts.pop(0)
-        with ReadOnly(self._db) as query:
+        db = self._get_thread_local_database()
+        with ReadOnly(db) as query:
             for part in parts:
                 query.execute('''
                     SELECT nodes.id AS id
@@ -150,7 +166,8 @@ class Database(object):
 
     def get_path_by_id(self, node_id):
         parts = []
-        with ReadOnly(self._db) as query:
+        db = self._get_thread_local_database()
+        with ReadOnly(db) as query:
             while True:
                 query.execute('''
                     SELECT name
@@ -179,7 +196,8 @@ class Database(object):
         return str(path)
 
     def get_child_by_id(self, node_id, name):
-        with ReadOnly(self._db) as query:
+        db = self._get_thread_local_database()
+        with ReadOnly(db) as query:
             query.execute('''
                 SELECT nodes.id AS id
                 FROM nodes
@@ -195,7 +213,8 @@ class Database(object):
         return node
 
     def get_children_by_id(self, node_id):
-        with ReadOnly(self._db) as query:
+        db = self._get_thread_local_database()
+        with ReadOnly(db) as query:
             query.execute('''
                 SELECT child
                 FROM parentage
@@ -207,7 +226,8 @@ class Database(object):
         return children
 
     def apply_changes(self, changes, check_point):
-        with ReadWrite(self._db) as query:
+        db = self._get_thread_local_database()
+        with ReadWrite(db) as query:
             for change in changes:
                 is_removed = change['removed']
                 if is_removed:
@@ -219,14 +239,16 @@ class Database(object):
             self.metadata['check_point'] = check_point
 
     def insert_node(self, node):
-        with ReadWrite(self._db) as query:
+        db = self._get_thread_local_database()
+        with ReadWrite(db) as query:
             inner_insert_node(query, node)
 
         if not node.name:
             self.metadata['root_id'] = node.id_
 
     def find_duplicate_nodes(self):
-        with ReadOnly(self._db) as query:
+        db = self._get_thread_local_database()
+        with ReadOnly(db) as query:
             query.execute('''
                 SELECT nodes.name AS name, parentage.parent as parent_id
                 FROM nodes
@@ -251,30 +273,31 @@ class Database(object):
             rv = [self.get_node_by_id(_) for _ in node_id_list]
         return rv
 
+    def _get_thread_local_database(self):
+        db = getattr(self._tls, 'db', None)
+        if db is None:
+            db = self._open()
+            setattr(self._tls, 'db', db)
+        return db
+
+    def _open(self):
+        path = self._settings['nodes_database_file']
+        db = sqlite3.connect(path, detect_types=sqlite3.PARSE_DECLTYPES)
+        db.row_factory = sqlite3.Row
+        db.create_function('REGEXP', 2, sqlite3_regexp)
+        return db
+
     def _try_create(self):
-        with ReadWrite(self._db) as query:
-            query.executescript(SQL_CREATE)
+        db = self._get_thread_local_database()
+        with ReadWrite(db) as query:
+            query.execute(SQL_CREATE_TABLE_METADATA)
+            query.execute(SQL_CREATE_TABLE_NODES)
+            query.execute(SQL_CREATE_TABLE_FILES)
+            query.execute(SQL_CREATE_TABLE_PARENTAGE)
+            query.execute(SQL_POST_CREATE)
 
     def _migrate(self, version):
         raise NotImplementedError()
-
-
-class Metadata(object):
-
-    def __init__(self, db):
-        self._db = db
-
-    def __getitem__(self, key):
-        with ReadOnly(self._db) as query:
-            query.execute('SELECT value FROM metadata WHERE key = ?;', (key,))
-            rv = query.fetchone()
-        if not rv:
-            raise KeyError
-        return rv['value']
-
-    def __setitem__(self, key, value):
-        with ReadWrite(self._db) as query:
-            query.execute('INSERT OR REPLACE INTO metadata VALUES (?, ?);', (key, value))
 
 
 class Node(object):
