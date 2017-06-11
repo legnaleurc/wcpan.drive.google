@@ -18,8 +18,6 @@ class Network(object):
     def __init__(self):
         self._access_token = None
         self._http = thc.AsyncHTTPClient()
-        self._headers = {
-        }
         self._backoff_level = 0
 
     def set_access_token(self, token):
