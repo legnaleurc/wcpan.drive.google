@@ -7,7 +7,7 @@ import os
 import os.path as op
 import re
 
-from tornado import concurrent as tc
+import tornado.platform.asyncio as tpaio
 from wcpan.logger import INFO, WARNING, DEBUG
 
 from .api import Client
@@ -20,7 +20,14 @@ FILE_FIELDS = 'id,name,mimeType,trashed,parents,createdTime,modifiedTime,md5Chec
 EMPTY_MD5SUM = 'd41d8cd98f00b204e9800998ecf8427e'
 
 
-off_main_thread = tc.run_on_executor(executor='_pool')
+def off_main_thread(fn):
+    @ft.wraps(fn)
+    def wrapper(self, *args, **kwargs):
+        future = self._pool.submit(fn, self, *args, **kwargs)
+        # NOTE dirty hack
+        future = tpaio.to_tornado_future(future)
+        return future
+    return wrapper
 
 
 class Drive(object):
