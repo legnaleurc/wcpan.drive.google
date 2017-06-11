@@ -236,7 +236,7 @@ class Database(object):
                     node = Node.from_api(change['file'])
                     inner_insert_node(query, node)
 
-            self.metadata['check_point'] = check_point
+            self.set_metadata('check_point', check_point)
 
     def insert_node(self, node):
         db = self._get_thread_local_database()
@@ -244,7 +244,7 @@ class Database(object):
             inner_insert_node(query, node)
 
         if not node.name:
-            self.metadata['root_id'] = node.id_
+            self.set_metadata('root_id', node.id_)
 
     def find_duplicate_nodes(self):
         db = self._get_thread_local_database()
