@@ -170,7 +170,7 @@ class Drive(object):
         # rename it back if completed
         os.rename(tmp_path, complete_path)
 
-        return local_md5
+        return hasher.hexdigest()
 
     # deprecated
     async def upload(self, local_path, parent_node):
