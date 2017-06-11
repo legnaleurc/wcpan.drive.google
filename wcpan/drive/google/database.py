@@ -338,11 +338,11 @@ class Node(object):
         return self._status
 
     @property
-    def available(self):
+    def is_available(self):
         return self._status == 'AVAILABLE'
 
     @property
-    def trashed(self):
+    def is_trashed(self):
         return self._status == 'TRASH'
 
     @property
