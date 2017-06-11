@@ -168,7 +168,7 @@ class Drive(object):
                                     consumer=writer)
 
         # rename it back if completed
-        op.rename(tmp_path, complete_path)
+        os.rename(tmp_path, complete_path)
 
         return local_md5
 
