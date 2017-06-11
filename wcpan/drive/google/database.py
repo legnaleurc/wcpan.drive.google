@@ -26,6 +26,7 @@ SQL_CREATE_TABLE_NODES = '''
         UNIQUE (id),
         CHECK (status IN ('AVAILABLE', 'TRASH'))
     );
+    CREATE INDEX ix_nodes_names ON nodes(name);
 '''
 SQL_CREATE_TABLE_FILES = '''
     CREATE TABLE files (
@@ -44,10 +45,9 @@ SQL_CREATE_TABLE_PARENTAGE = '''
         PRIMARY KEY (parent, child),
         FOREIGN KEY (child) REFERENCES nodes (id)
     );
-'''
-SQL_POST_CREATE = '''
     CREATE INDEX ix_parentage_child ON parentage(child);
-    CREATE INDEX ix_nodes_names ON nodes(name);
+'''
+SQL_CREATE_SCHEMA_VERSION = '''
     PRAGMA user_version = 1;
 '''
 
@@ -294,7 +294,7 @@ class Database(object):
             query.execute(SQL_CREATE_TABLE_NODES)
             query.execute(SQL_CREATE_TABLE_FILES)
             query.execute(SQL_CREATE_TABLE_PARENTAGE)
-            query.execute(SQL_POST_CREATE)
+            query.execute(SQL_CREATE_SCHEMA_VERSION)
 
     def _migrate(self, version):
         raise NotImplementedError()
