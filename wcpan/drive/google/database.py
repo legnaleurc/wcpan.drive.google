@@ -60,7 +60,6 @@ class Database(object):
         self._settings = settings
         self._tls = threading.local()
 
-    # TODO close all database
     def close(self):
         db = self._get_thread_local_database()
         db.close()
