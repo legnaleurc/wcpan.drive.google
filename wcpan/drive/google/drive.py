@@ -79,14 +79,23 @@ class Drive(object):
     def get_node_by_path(self, path):
         return self._db.get_node_by_path(path)
 
+    def get_path(self, node):
+        return self._db.get_path_by_id(node.id_)
+
     def get_path_by_id(self, node_id):
         return self._db.get_path_by_id(node_id)
 
     def get_child_by_id(self, node_id, name):
         return self._db.get_child_by_id(node_id, name)
 
+    def get_children(self, node):
+        return self._db.get_children_by_id(node.id_)
+
     def get_children_by_id(self, node_id):
         return self._db.get_children_by_id(node_id)
+
+    def find_nodes_by_regex(self, pattern):
+        return self._db.find_nodes_by_regex(pattern)
 
     def find_duplicate_nodes(self):
         return self._db.find_duplicate_nodes()
@@ -122,6 +131,7 @@ class Drive(object):
 
         # TODO rename it back if completed
 
+    # deprecated
     async def upload(self, local_path, parent_node):
         INFO('wcpan.gd') << 'uploading' << local_path
         if op.isdir(local_path):
