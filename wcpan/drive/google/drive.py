@@ -89,6 +89,7 @@ class Drive(object):
             INFO('wcpan.drive.google') << 'applied' << len(changes) << 'changes'
 
         INFO('wcpan.drive.google') << 'sync end'
+        return True
 
     @property
     def root_node(self):
@@ -113,6 +114,10 @@ class Drive(object):
     @off_main_thread
     def get_child_by_id(self, node_id, name):
         return self._db.get_child_by_id(node_id, name)
+
+    @off_main_thread
+    def get_child(self, node, name):
+        return self._db.get_child_by_id(node.id_, name)
 
     @off_main_thread
     def get_children(self, node):
