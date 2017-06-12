@@ -318,6 +318,10 @@ class Node(object):
         return self._name is None
 
     @property
+    def is_file(self):
+        return not self._is_folder
+
+    @property
     def is_folder(self):
         return self._is_folder
 
