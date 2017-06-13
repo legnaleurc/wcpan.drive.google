@@ -126,7 +126,7 @@ class Database(object):
                 WHERE child=?
             ;''', (node_id,))
             rv = query.fetchall()
-            node['parents'] = [_['parent'] for _ in rv]
+            node['parents'] = None if not rv else [_['parent'] for _ in rv]
 
             node = Node.from_database(node)
             return node
@@ -182,6 +182,9 @@ class Database(object):
                     WHERE child=?
                 ;''', (node_id,))
                 rv = query.fetchone()
+                if not rv:
+                    # orphan node
+                    break
                 node_id = rv['parent']
 
         path = pl.Path(*parts)
@@ -378,7 +381,7 @@ class Node(object):
         self._status = 'TRASH' if data['trashed'] else 'AVAILABLE'
         self._created = u.from_isoformat(data['createdTime'])
         self._modified = u.from_isoformat(data['modifiedTime'])
-        self._parents = data['parents']
+        self._parents = data.get('parents', None)
 
         self._is_folder = data['mimeType'] == u.FOLDER_MIME_TYPE
         self._md5 = data.get('md5Checksum', None)
@@ -391,7 +394,7 @@ class Node(object):
         self._status = data['status']
         self._created = data['created']
         self._modified = data['modified']
-        self._parents = data['parents']
+        self._parents = data.get('parents', None)
 
         self._is_folder = data['is_folder']
         self._md5 = data['md5']
@@ -447,13 +450,14 @@ def inner_insert_node(query, node):
         ;''', (node.id_, node.md5, node.size))
 
     # add parentage
-    for parent in node.parents:
-        query.execute('''
-            INSERT OR REPLACE INTO parentage
-            (parent, child)
-            VALUES
-            (?, ?)
-        ;''', (parent, node.id_))
+    if node.parents:
+        for parent in node.parents:
+            query.execute('''
+                INSERT OR REPLACE INTO parentage
+                (parent, child)
+                VALUES
+                (?, ?)
+            ;''', (parent, node.id_))
 
 
 def inner_delete_node_by_id(query, node_id):
