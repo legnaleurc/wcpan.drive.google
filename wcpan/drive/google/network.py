@@ -81,7 +81,7 @@ class Network(object):
         if backoff_needed(response):
             self._increase_backoff_level()
         else:
-            self._reset_backoff_level()
+            self._decrease_backoff_level()
 
         # normal response
         if response.status[0] in ('1', '2', '3'):
@@ -93,8 +93,8 @@ class Network(object):
     def _increase_backoff_level(self):
         self._backoff_level = self._backoff_level + 1
 
-    def _reset_backoff_level(self):
-        self._backoff_level = 0
+    def _decrease_backoff_level(self):
+        self._backoff_level = max(self._backoff_level - 1, 0)
 
     async def _maybe_backoff(self):
         if self._backoff_level <= 0:
@@ -215,6 +215,7 @@ def backoff_needed(response):
         domain = msg['error']['errors'][0]['domain']
         if domain != 'usageLimits':
             return False
+        INFO('wcpan.drive.google') << msg['error']['message']
 
     return True
 
