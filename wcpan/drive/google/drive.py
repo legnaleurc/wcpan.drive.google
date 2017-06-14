@@ -214,7 +214,7 @@ class Drive(object):
 
         return node
 
-    async def upload_file(self, file_path, parent_node):
+    async def upload_file(self, file_path, parent_node, exist_ok=False):
         # sanity check
         if not parent_node:
             raise UploadError('invalid parent node')
@@ -229,8 +229,11 @@ class Drive(object):
         # do not upload if remote exists a same file
         node = await self.fetch_child_by_id(parent_node.id_, file_name)
         if node:
-            INFO('wcpan.gd') << 'skipped (existing)' << file_path
-            return node
+            if exist_ok:
+                INFO('wcpan.gd') << 'skipped (existing)' << file_path
+                return node
+            else:
+                raise UploadConflictedError(file_path)
 
         total_file_size = op.getsize(file_path)
         mt, e = mimetypes.guess_type(file_path)
@@ -377,6 +380,15 @@ class UploadError(GoogleDriveError):
 
     def __str__(self):
         return self._message
+
+
+class UploadConflictedError(UploadError):
+
+    def __init__(self, file_path):
+        self._file_path = file_path
+
+    def __str__(self):
+        return 'remote file already exists: ' + self._file_path
 
 
 async def file_producer(fin, hasher, write):
