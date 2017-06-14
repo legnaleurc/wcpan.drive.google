@@ -17,6 +17,7 @@ from .util import Settings, GoogleDriveError, stream_md5sum, FOLDER_MIME_TYPE, C
 
 
 FILE_FIELDS = 'id,name,mimeType,trashed,parents,createdTime,modifiedTime,md5Checksum,size'
+CHANGE_FIELDS = 'nextPageToken,newStartPageToken,changes(fileId,removed,file({0}))'.format(FILE_FIELDS)
 EMPTY_MD5SUM = 'd41d8cd98f00b204e9800998ecf8427e'
 
 
@@ -66,12 +67,11 @@ class Drive(object):
             self._db.insert_node(node)
 
         new_start_page_token = None
-        fields = 'nextPageToken,newStartPageToken,changes(fileId,removed,file({0}))'.format(FILE_FIELDS)
         changes_list_args = {
             'page_token': check_point,
             'page_size': 1000,
             'restrict_to_my_drive': True,
-            'fields': fields,
+            'fields': CHANGE_FIELDS,
         }
 
         while new_start_page_token is None:
