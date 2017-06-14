@@ -348,7 +348,7 @@ class Node(object):
     def is_trashed(self):
         return self._status == 'TRASH'
 
-    @property.setter
+    @is_trashed.setter
     def is_trashed(self, trashed):
         if trashed:
             self._status = 'TRASH'
