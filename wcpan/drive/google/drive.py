@@ -177,36 +177,20 @@ class Drive(object):
 
         return hasher.hexdigest()
 
-    # deprecated
-    async def upload(self, local_path, parent_node):
-        INFO('wcpan.gd') << 'uploading' << local_path
-        if op.isdir(local_path):
-            rv = await self.create_folder(local_path, parent_node)
-            for child_path in os.listdir(local_path):
-                child_path = op.join(local_path, child_path)
-                await self.upload(child_path, rv)
-        else:
-            rv = await self.upload_file(local_path, parent_node)
-        return rv
-
-    async def create_folder(self, folder_path, parent_node):
+    async def create_folder(self, parent_node, folder_name):
         # sanity check
         if not parent_node:
             raise UploadError('invalid parent node')
         if not parent_node.is_folder:
             raise UploadError('invalid parent node')
-        if not op.isdir(folder_path):
-            raise UploadError('invalid folder path')
-
-        api = self._client.files
-        folder_name = op.basename(folder_path)
 
         # do not create again if there is a same file
         node = await self.fetch_child_by_id(parent_node.id_, folder_name)
         if node:
-            INFO('wcpan.gd') << 'skipped (existing)' << folder_path
+            INFO('wcpan.gd') << 'skipped (existing)' << folder_name
             return node
 
+        api = self._client.files
         rv = await api.create_folder(folder_name=folder_name,
                                      parent_id=parent_node.id_)
         rv = rv.json_
