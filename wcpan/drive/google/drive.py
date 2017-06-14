@@ -291,6 +291,13 @@ class Drive(object):
         self._db.insert_node(node)
         return node
 
+    async def trash_node_by_id(self, node_id):
+        await self._client.files.update(node_id, trashed=True)
+        node = await self.get_node_by_id(node_id)
+        node.is_trashed = True
+        self._db.insert_node(node)
+        return node
+
     async def _inner_upload_file(self, file_path, file_name, total_file_size,
                                  parent_id, mime_type):
         api = self._client.files

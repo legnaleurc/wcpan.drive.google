@@ -348,6 +348,13 @@ class Node(object):
     def is_trashed(self):
         return self._status == 'TRASH'
 
+    @property.setter
+    def is_trashed(self, trashed):
+        if trashed:
+            self._status = 'TRASH'
+        else:
+            self._status = 'AVAILABLE'
+
     @property
     def created(self):
         return self._created

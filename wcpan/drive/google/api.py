@@ -315,3 +315,22 @@ class Files(object):
         rv = await self._client._do_request('POST', self._root, headers=headers,
                                             body=metadata)
         return rv
+
+    async def update(self, file_id: str, trashed: bool = None) -> Response:
+        metadata = {}
+        if trashed is not None:
+            metadata['trashed'] = trashed
+
+        if not metadata:
+            raise ValueError('not enough parameter')
+
+        metadata = json.dumps(metadata)
+        metadata = metadata.encode('utf-8')
+        headers = {
+            'Content-Type': 'application/json; charset=UTF-8',
+            'Content-Length': len(metadata),
+        }
+
+        rv = await self._client._do_request('PATCH', self._root,
+                                            headers=headers, body=metadata)
+        return rv
