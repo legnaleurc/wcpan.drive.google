@@ -91,7 +91,7 @@ class Network(object):
         raise NetworkError(response)
 
     def _increase_backoff_level(self):
-        self._backoff_level = self._backoff_level + 1
+        self._backoff_level = min(self._backoff_level + 2, 10)
 
     def _decrease_backoff_level(self):
         self._backoff_level = max(self._backoff_level - 1, 0)
