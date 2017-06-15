@@ -299,12 +299,13 @@ class Files(object):
 
         metadata = {
             'name': file_name,
-            'mimeType': FOLDER_MIME_TYPE,
         }
         if parent_id is not None:
             metadata['parents'] = [parent_id]
         if mime_type is not None:
             metadata['mimeType'] = mime_type
+        else:
+            metadata['mimeType'] = 'application/octet-stream'
         metadata = json.dumps(metadata)
         metadata = metadata.encode('utf-8')
         headers = {
