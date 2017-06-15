@@ -83,7 +83,7 @@ class Drive(object):
 
             check_point = next_page_token if next_page_token is not None else new_start_page_token
 
-            self._db.apply_changes(changes, check_point)
+            await self._apply_changes(changes, check_point)
             changes_list_args['page_token'] = check_point
 
             INFO('wcpan.drive.google') << 'applied' << len(changes) << 'changes'
@@ -353,6 +353,10 @@ class Drive(object):
         rv = int(rv.group(2))
 
         return False, rv
+
+    @off_main_thread
+    def _apply_changes(self, changes, check_point):
+        self._db.apply_changes(changes, check_point)
 
 
 class DownloadError(GoogleDriveError):
