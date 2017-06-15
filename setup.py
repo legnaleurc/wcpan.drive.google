@@ -15,6 +15,7 @@ setup(
             'PyDrive',
             'tornado',
             'wcpan.logger',
+            'wcpan.worker',
         ],
         classifiers=[
             'Programming Language :: Python :: 3 :: Only',

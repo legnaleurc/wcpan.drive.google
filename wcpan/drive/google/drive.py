@@ -1,4 +1,3 @@
-import concurrent.futures as cf
 import functools as ft
 import hashlib as hl
 import mimetypes
@@ -7,8 +6,8 @@ import os
 import os.path as op
 import re
 
-import tornado.platform.asyncio as tpaio
 from wcpan.logger import INFO, WARNING, DEBUG
+import wcpan.worker as ww
 
 from .api import Client
 from .database import Database, Node
@@ -21,14 +20,7 @@ CHANGE_FIELDS = 'nextPageToken,newStartPageToken,changes(fileId,removed,file({0}
 EMPTY_MD5SUM = 'd41d8cd98f00b204e9800998ecf8427e'
 
 
-def off_main_thread(fn):
-    @ft.wraps(fn)
-    def wrapper(self, *args, **kwargs):
-        future = self._pool.submit(fn, self, *args, **kwargs)
-        # NOTE dirty hack
-        future = tpaio.to_tornado_future(future)
-        return future
-    return wrapper
+off_main_thread = ww.off_main_thread_method('_pool')
 
 
 class Drive(object):
@@ -37,7 +29,7 @@ class Drive(object):
         self._settings = Settings(settings_path)
         self._client = Client(self._settings)
         self._db = Database(self._settings)
-        self._pool = cf.ThreadPoolExecutor(max_workers=mp.cpu_count())
+        self._pool = ww.create_thread_pool()
 
     def close(self):
         self._pool.shutdown()
