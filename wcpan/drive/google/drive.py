@@ -134,31 +134,35 @@ class Drive(object):
     async def download_file(self, node, path):
         # sanity check
         if not node:
-            return False
+            raise ValueError('node is none')
         if node.is_folder:
-            return False
-        if not op.exists(path):
-            return False
+            raise ValueError('node should be a file')
+        if not op.isdir(path):
+            raise ValueError('{0} does not exist'.format(path))
 
+        # check if exists
         complete_path = op.join(path, node.name)
-        hasher = hl.md5()
+        if op.isfile(complete_path):
+            return True
+
+        # exists but not a file
+        if op.exists(complete_path):
+            msg = '{0} exists but is not a file'.format(complete_path)
+            raise DownloadError(msg)
 
         # resume download
         tmp_path = complete_path + '.__tmp__'
-        if op.exists(tmp_path):
+        if op.isfile(tmp_path):
             offset = op.getsize(tmp_path)
-            with open(tmp_path, 'rb') as fin:
-                while True:
-                    chunk = fin.read(65535)
-                    if not chunk:
-                        break
-                    hasher.update(chunk)
+        elif op.exists(tmp_path):
+            msg = '{0} exists but is not a file'.format(complete_path)
+            raise DownloadError(msg)
         else:
             offset = 0
         range_ = (offset, node.size)
 
         with open(tmp_path, 'ab') as fout:
-            writer = ft.partial(file_consumer, fout, hasher)
+            writer = ft.partial(file_consumer, fout)
 
             api = self._client.files
             rv = await api.download(file_id=node.id_, range_=range_,
@@ -167,7 +171,7 @@ class Drive(object):
         # rename it back if completed
         os.rename(tmp_path, complete_path)
 
-        return hasher.hexdigest()
+        return True
 
     async def create_folder(self, parent_node, folder_name):
         # sanity check
@@ -387,6 +391,5 @@ async def file_producer(fin, hasher, write):
         await write(chunk)
 
 
-def file_consumer(fout, hasher, chunk):
-    hasher.update(chunk)
+def file_consumer(fout, chunk):
     fout.write(chunk)
