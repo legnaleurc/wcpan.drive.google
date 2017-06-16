@@ -3,7 +3,7 @@ from setuptools import setup
 
 setup(
         name='wcpan.drive.google',
-        version='1.0.0.dev1',
+        version='1.0.0.dev2',
         author='Wei-Cheng Pan',
         author_email='legnaleurc@gmail.com',
         description='Google Drive API with Tornado.',
