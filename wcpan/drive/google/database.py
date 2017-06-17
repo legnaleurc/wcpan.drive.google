@@ -491,7 +491,7 @@ def sqlite3_regexp(pattern, cell):
     if cell is None:
         # root node
         return False
-    return re.search(pattern, cell) is not None
+    return re.search(pattern, cell, re.I) is not None
 
 
 def initialize():
