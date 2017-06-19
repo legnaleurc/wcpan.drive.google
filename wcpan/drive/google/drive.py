@@ -386,13 +386,10 @@ class UploadConflictedError(UploadError):
         return 'remote file already exists: ' + self._file_path
 
 
-async def file_producer(fin, hasher, write):
-    while True:
-        chunk = fin.read(CHUNK_SIZE)
-        if not chunk:
-            break
-        hasher.update(chunk)
-        await write(chunk)
+def file_producer(fin, hasher, size):
+    chunk = fin.read(size)
+    hasher.update(chunk)
+    return chunk
 
 
 def file_consumer(fout, chunk):

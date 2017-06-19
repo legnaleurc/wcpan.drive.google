@@ -1,4 +1,5 @@
 PyDrive
+pycurl
 tornado
 wcpan.logger
 wcpan.worker
