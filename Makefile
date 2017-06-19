@@ -1,4 +1,4 @@
-.PHONY: all clean upload
+.PHONY: all clean upload test install
 
 all:
 	python setup.py sdist bdist_wheel
@@ -11,3 +11,6 @@ clean:
 
 test:
 	python -m compileall wcpan
+
+install:
+	pip install -e .
