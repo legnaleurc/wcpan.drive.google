@@ -133,7 +133,7 @@ class Drive(object):
 
     async def download_file_by_id(self, node_id, path):
         node = await self.get_node_by_id(node_id)
-        return await self.download(node, path)
+        return await self.download_file(node, path)
 
     async def download_file(self, node, path):
         # sanity check
