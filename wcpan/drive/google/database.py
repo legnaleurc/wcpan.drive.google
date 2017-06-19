@@ -276,6 +276,19 @@ class Database(object):
             rv = [self.get_node_by_id(_) for _ in node_id_list]
         return rv
 
+    def find_orphan_nodes(self):
+        db = self._get_thread_local_database()
+        with ReadOnly(db) as query:
+            query.execute('''
+                SELECT nodes.id AS id
+                FROM parentage
+                    LEFT OUTER JOIN nodes ON parentage.child=nodes.id
+                WHERE parentage.parent IS NULL
+            ;''')
+            rv = query.fetchall()
+            rv = [self.get_node_by_id(_['id']) for _ in rv]
+        return rv
+
     def _get_thread_local_database(self):
         db = getattr(self._tls, 'db', None)
         if db is None:
@@ -471,8 +484,8 @@ def inner_delete_node_by_id(query, node_id):
     # disconnect parents
     query.execute('''
         DELETE FROM parentage
-        WHERE child=?
-    ;''', (node_id,))
+        WHERE child=? OR parent=?
+    ;''', (node_id, node_id))
 
     # remove from files
     query.execute('''

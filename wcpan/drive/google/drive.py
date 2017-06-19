@@ -127,6 +127,10 @@ class Drive(object):
     def find_duplicate_nodes(self):
         return self._db.find_duplicate_nodes()
 
+    @off_main_thread
+    def find_orphan_nodes(self):
+        return self._db.find_orphan_nodes()
+
     async def download_file_by_id(self, node_id, path):
         node = await self.get_node_by_id(node_id)
         return await self.download(node, path)
