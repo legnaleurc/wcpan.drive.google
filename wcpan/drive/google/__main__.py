@@ -8,6 +8,7 @@ import pathlib as pl
 import sys
 
 from tornado import ioloop as ti, locks as tl, gen as tg
+import yaml
 import wcpan.logger as wl
 
 from .drive import Drive
@@ -190,9 +191,7 @@ async def main(args=None):
     drive = Drive(path)
     drive.initialize()
 
-    await args.action(drive)
-
-    return 0
+    return await args.action(drive, args)
 
     local_path = args[1]
     remote_path = args[2]
@@ -215,14 +214,33 @@ def parse_args(args):
     sync_parser = commands.add_parser('sync', aliases=['s'])
     sync_parser.set_defaults(action=action_sync)
 
+    dl_parser = commands.add_parser('find', aliases=['f'])
+    dl_parser.set_defaults(action=action_find)
+    dl_parser.add_argument('pattern', type=str)
+
+    dl_parser = commands.add_parser('download', aliases=['dl'])
+    dl_parser.set_defaults(action=action_download)
+    dl_parser.add_argument('id_or_path', type=str)
+
     args = parser.parse_args(args)
 
     return args
 
 
-async def action_sync(drive):
+async def action_sync(drive, args):
     await drive.sync()
     return 0
+
+
+async def action_find(drive, args):
+    nodes = await drive.find_nodes_by_regex(args.pattern)
+    nodes = {_.id_: drive.get_path(_) for _ in nodes}
+    nodes = await tg.multi(nodes)
+    yaml.dump(nodes, stream=sys.stdout, default_flow_style=False)
+
+
+async def action_download(drive, args):
+    print(args)
 
 
 main_loop = ti.IOLoop.instance()
