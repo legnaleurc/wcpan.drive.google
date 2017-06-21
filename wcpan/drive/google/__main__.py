@@ -221,6 +221,7 @@ def parse_args(args):
     dl_parser = commands.add_parser('download', aliases=['dl'])
     dl_parser.set_defaults(action=action_download)
     dl_parser.add_argument('id_or_path', type=str)
+    dl_parser.add_argument('destination', type=str)
 
     args = parser.parse_args(args)
 
@@ -237,10 +238,17 @@ async def action_find(drive, args):
     nodes = {_.id_: drive.get_path(_) for _ in nodes}
     nodes = await tg.multi(nodes)
     yaml.dump(nodes, stream=sys.stdout, default_flow_style=False)
+    return 0
 
 
 async def action_download(drive, args):
-    print(args)
+    id_or_path = args.id_or_path
+    if id_or_path[0] == '/':
+        node = await drive.get_node_by_path(id_or_path)
+    else:
+        node = await drive.get_node_by_id(id_or_path)
+    await drive.download_file(node, args.destination)
+    return 0
 
 
 main_loop = ti.IOLoop.instance()
