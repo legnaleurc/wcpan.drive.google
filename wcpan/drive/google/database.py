@@ -46,6 +46,17 @@ SQL_CREATE_TABLES = '''
 CURRENT_SCHEMA_VERSION = 1
 
 
+class DatabaseError(u.GoogleDriveError):
+
+    def __init__(self, message):
+        super(DatabaseError, self).__init__()
+
+        self._message = message
+
+    def __str__(self):
+        return self._message
+
+
 class Database(object):
 
     def __init__(self, settings):
@@ -382,8 +393,9 @@ class Node(object):
 
     @property
     def parent_id(self):
-        if not self._parents:
-            return None
+        if len(self._parents) != 1:
+            msg = 'expected only one parent, got: {0}'.format(self._parents)
+            raise DatabaseError(msg)
         return self._parents[0]
 
     @property
@@ -471,6 +483,11 @@ def inner_insert_node(query, node):
 
     # add parentage
     if node.parents:
+        query.execute('''
+            DELETE FROM parentage
+            WHERE child=?
+        ;''', (node.id_,))
+
         for parent in node.parents:
             query.execute('''
                 INSERT OR REPLACE INTO parentage
