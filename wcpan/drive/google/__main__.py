@@ -1,3 +1,4 @@
+import argparse
 import contextlib as cl
 import functools as ft
 import hashlib
@@ -183,10 +184,13 @@ async def main(args=None):
         'wcpan.drive.google',
     ))
 
+    args = parse_args(args[1:])
+
     path = op.expanduser('~/.cache/wcpan/drive/google')
     drive = Drive(path)
     drive.initialize()
-    await drive.sync()
+
+    await args.action(drive)
 
     return 0
 
@@ -201,6 +205,23 @@ async def main(args=None):
     remote_path = drive.get_node_by_path(remote_path)
     await verify_upload(drive, local_path, remote_path)
 
+    return 0
+
+
+def parse_args(args):
+    parser = argparse.ArgumentParser('wdg')
+    commands = parser.add_subparsers()
+
+    sync_parser = commands.add_parser('sync', aliases=['s'])
+    sync_parser.set_defaults(action=action_sync)
+
+    args = parser.parse_args(args)
+
+    return args
+
+
+async def action_sync(drive):
+    await drive.sync()
     return 0
 
 
