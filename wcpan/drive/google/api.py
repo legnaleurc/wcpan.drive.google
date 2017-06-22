@@ -199,7 +199,8 @@ class Files(object):
 
         uri = self._root + '/' + file_id
         rv = await self._client._do_request('GET', uri, args, headers=headers,
-                                            consumer=consumer, timeout=3600.0)
+                                            consumer=consumer,
+                                            raise_internal_error=True)
         return rv
 
     async def initiate_uploading(self, file_name: str, total_file_size: int,
@@ -255,7 +256,8 @@ class Files(object):
 
         # upload usually need more time to complete
         rv = await self._client._do_request('PUT', uri, headers=headers,
-                                            body=producer, timeout=3600.0)
+                                            body=producer,
+                                            raise_internal_error=True)
         return rv
 
     async def get_upload_status(self, uri: str,

@@ -26,21 +26,22 @@ class Network(object):
         self._access_token = token
 
     async def fetch(self, method, path, args=None, headers=None, body=None,
-                    consumer=None, timeout=None):
+                    consumer=None, raise_internal_error=False):
         while True:
             await self._maybe_backoff()
             try:
                 rv = await self._do_request(method, path, args, headers, body,
-                                            consumer, timeout)
+                                            consumer, raise_internal_error)
                 return rv
             except NetworkError as e:
                 if e.status != '599':
                     raise
-                # timeout error
+                if e._response.raise_internal_error:
+                    raise
                 WARNING('wcpan.drive.google') << str(e)
 
     async def _do_request(self, method, path, args, headers, body, consumer,
-                          timeout):
+                          raise_internal_error):
         headers = self._prepare_headers(headers)
         if args is not None:
             path = thu.url_concat(path, args)
@@ -61,12 +62,13 @@ class Network(object):
             args['allow_nonstandard_methods'] = True
         if consumer is not None:
             args['streaming_callback'] = consumer
-        if timeout is not None:
-            args['request_timeout'] = timeout
+        if raise_internal_error:
+            # do not raise timeout from client
+            args['request_timeout'] = 0.0
 
         request = thc.HTTPRequest(**args)
         rv = await self._http.fetch(request, raise_error=False)
-        rv = Response(rv)
+        rv = Response(rv, raise_internal_error)
         rv = self._handle_status(rv)
         return rv
 
@@ -134,8 +136,9 @@ class Request(object):
 
 class Response(object):
 
-    def __init__(self, response):
+    def __init__(self, response, raise_internal_error):
         self._response = response
+        self._raise_internal_error = raise_internal_error
         self._request = Request(response.request)
         self._status = str(self._response.code)
         self._parsed_json = False
@@ -171,6 +174,10 @@ class Response(object):
     @property
     def error(self):
         return self._response.error
+
+    @property
+    def raise_internal_error(self):
+        return self._raise_internal_error
 
     def get_header(self, key):
         h = self._response.headers.get_list(key)
