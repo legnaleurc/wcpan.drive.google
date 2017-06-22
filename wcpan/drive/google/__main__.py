@@ -201,14 +201,18 @@ def parse_args(args):
     dl_parser.set_defaults(action=action_find)
     dl_parser.add_argument('pattern', type=str)
 
-    dl_parser = commands.add_parser('download', aliases=['dl'])
-    dl_parser.set_defaults(action=action_download)
-    dl_parser.add_argument('id_or_path', type=str)
-    dl_parser.add_argument('destination', type=str)
+    list_parser = commands.add_parser('list', aliases=['ls'])
+    list_parser.set_defaults(action=action_list)
+    list_parser.add_argument('id_or_path', type=str)
 
     tree_parser = commands.add_parser('tree')
     tree_parser.set_defaults(action=action_tree)
     tree_parser.add_argument('id_or_path', type=str)
+
+    dl_parser = commands.add_parser('download', aliases=['dl'])
+    dl_parser.set_defaults(action=action_download)
+    dl_parser.add_argument('id_or_path', type=str)
+    dl_parser.add_argument('destination', type=str)
 
     args = parser.parse_args(args)
 
@@ -224,19 +228,27 @@ async def action_find(drive, args):
     nodes = await drive.find_nodes_by_regex(args.pattern)
     nodes = {_.id_: drive.get_path(_) for _ in nodes}
     nodes = await tg.multi(nodes)
-    yaml.dump(nodes, stream=sys.stdout, default_flow_style=False)
+    yaml.safe_dump(nodes, stream=sys.stdout, default_flow_style=False)
     return 0
 
 
-async def action_download(drive, args):
+async def action_list(drive, args):
     node = await get_node_by_id_or_path(drive, args.id_or_path)
-    await drive.download_file(node, args.destination)
+    nodes = await drive.get_children(node)
+    nodes = {_.id_: _.name for _ in nodes}
+    yaml.safe_dump(nodes, stream=sys.stdout, default_flow_style=False)
     return 0
 
 
 async def action_tree(drive, args):
     node = await get_node_by_id_or_path(drive, args.id_or_path)
     await traverse_node(drive, node, 0)
+    return 0
+
+
+async def action_download(drive, args):
+    node = await get_node_by_id_or_path(drive, args.id_or_path)
+    await drive.download_file(node, args.destination)
     return 0
 
 
