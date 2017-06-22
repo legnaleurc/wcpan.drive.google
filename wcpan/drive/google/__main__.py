@@ -16,23 +16,6 @@ from .util import stream_md5sum
 from .network import NetworkError
 
 
-def traverse_node(drive, node, level):
-    if node.is_root:
-        print_node('/', level)
-    else:
-        print_node(node.name, level)
-
-    if node.is_folder:
-        children = drive.get_children_by_id(node.id_)
-        for child in children:
-            traverse_node(drive, child, level + 1)
-
-
-def print_node(name, level):
-    level = ' ' * level
-    print(level + name)
-
-
 async def verify_upload(drive, local_path, remote_node):
     if local_path.is_dir():
         await verify_upload_directory(drive, local_path, remote_node)
@@ -223,6 +206,10 @@ def parse_args(args):
     dl_parser.add_argument('id_or_path', type=str)
     dl_parser.add_argument('destination', type=str)
 
+    tree_parser = commands.add_parser('tree')
+    tree_parser.set_defaults(action=action_tree)
+    tree_parser.add_argument('id_or_path', type=str)
+
     args = parser.parse_args(args)
 
     return args
@@ -242,13 +229,43 @@ async def action_find(drive, args):
 
 
 async def action_download(drive, args):
-    id_or_path = args.id_or_path
+    node = await get_node_by_id_or_path(drive, args.id_or_path)
+    await drive.download_file(node, args.destination)
+    return 0
+
+
+async def action_tree(drive, args):
+    node = await get_node_by_id_or_path(drive, args.id_or_path)
+    await traverse_node(drive, node, 0)
+    return 0
+
+
+async def get_node_by_id_or_path(drive, id_or_path):
     if id_or_path[0] == '/':
         node = await drive.get_node_by_path(id_or_path)
     else:
         node = await drive.get_node_by_id(id_or_path)
-    await drive.download_file(node, args.destination)
-    return 0
+    return node
+
+
+async def traverse_node(drive, node, level):
+    if node.is_root:
+        print_node('/', level)
+    elif level == 0:
+        top_path = await drive.get_path(node)
+        print_node(top_path, level)
+    else:
+        print_node(node.name, level)
+
+    if node.is_folder:
+        children = await drive.get_children_by_id(node.id_)
+        for child in children:
+            await traverse_node(drive, child, level + 1)
+
+
+def print_node(name, level):
+    level = ' ' * level
+    print(level + name)
 
 
 main_loop = ti.IOLoop.instance()
