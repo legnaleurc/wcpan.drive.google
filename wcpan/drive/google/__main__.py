@@ -228,7 +228,7 @@ async def action_find(drive, args):
     nodes = await drive.find_nodes_by_regex(args.pattern)
     nodes = {_.id_: drive.get_path(_) for _ in nodes}
     nodes = await tg.multi(nodes)
-    yaml.safe_dump(nodes, stream=sys.stdout, default_flow_style=False)
+    print_as_yaml(nodes)
     return 0
 
 
@@ -236,7 +236,7 @@ async def action_list(drive, args):
     node = await get_node_by_id_or_path(drive, args.id_or_path)
     nodes = await drive.get_children(node)
     nodes = {_.id_: _.name for _ in nodes}
-    yaml.safe_dump(nodes, stream=sys.stdout, default_flow_style=False)
+    print_as_yaml(nodes)
     return 0
 
 
@@ -278,6 +278,11 @@ async def traverse_node(drive, node, level):
 def print_node(name, level):
     level = ' ' * level
     print(level + name)
+
+
+def print_as_yaml(data):
+    yaml.safe_dump(data, stream=sys.stdout, allow_unicode=True,
+                   encoding=sys.stdout.encoding, default_flow_style=False)
 
 
 main_loop = ti.IOLoop.instance()
