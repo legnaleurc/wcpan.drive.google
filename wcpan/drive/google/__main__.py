@@ -2,6 +2,7 @@ import argparse
 import contextlib as cl
 import functools as ft
 import hashlib
+import io
 import os
 import os.path as op
 import pathlib as pl
@@ -169,6 +170,9 @@ async def main(args=None):
     ))
 
     args = parse_args(args[1:])
+    if not args.action:
+        await args.fallback_action()
+        return 0
 
     path = op.expanduser('~/.cache/wcpan/drive/google')
     drive = Drive(path)
@@ -176,22 +180,10 @@ async def main(args=None):
 
     return await args.action(drive, args)
 
-    local_path = args[1]
-    remote_path = args[2]
-
-    await upload_local_to_remote(drive, local_path, remote_path)
-
-    return 0
-
-    local_path = pl.Path(local_path)
-    remote_path = drive.get_node_by_path(remote_path)
-    await verify_upload(drive, local_path, remote_path)
-
-    return 0
-
 
 def parse_args(args):
     parser = argparse.ArgumentParser('wdg')
+
     commands = parser.add_subparsers()
 
     sync_parser = commands.add_parser('sync', aliases=['s'])
@@ -214,9 +206,18 @@ def parse_args(args):
     dl_parser.add_argument('id_or_path', type=str)
     dl_parser.add_argument('destination', type=str)
 
+    sout = io.StringIO()
+    parser.print_help(sout)
+    fallback = ft.partial(action_help, sout.getvalue())
+    parser.set_defaults(action=None, fallback_action=fallback)
+
     args = parser.parse_args(args)
 
     return args
+
+
+async def action_help(message):
+    print(message)
 
 
 async def action_sync(drive, args):
