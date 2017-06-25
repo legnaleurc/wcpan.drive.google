@@ -69,33 +69,92 @@ async def verify_upload_file(drive, local_path, remote_node):
 
 class UploadQueue(object):
 
-    def __init__(self):
+    def __init__(self, drive):
+        self._drive = drive
         self._lock = tl.Semaphore(value=8)
         self._final = tl.Condition()
         self._counter = 0
+        self._total = 0
         self._failed = []
 
-    def push(self, runnable):
-        loop = ti.IOLoop.current()
-        fn = ft.partial(self._do_push, runnable)
-        loop.add_callback(fn)
-        self._counter = self._counter + 1
-
-    def add_failed(self, local_path):
-        self._failed.append(local_path)
-
-    async def wait_for_complete(self):
-        await self._final.wait()
+    async def upload(self, local_path, parent_node):
+        self._total = self._count_tasks(local_path)
+        fn = ft.partial(self._internal_upload, child_path, node)
+        self._push(fn)
+        await self._wait_for_complete()
 
     @property
     def failed(self):
         return self._failed
 
-    async def _do_push(self, runnable):
+    def _count_tasks(self, local_path):
+        total = 1
+        for root, folders, files in os.walk(local_path):
+            total = total + len(folders) + len(files)
+        return total
+
+    async def _wait_for_complete(self):
+        await self._final.wait()
+
+    async def _internal_upload(self, local_path, parent_node):
+        if op.isdir(local_path):
+            rv = await self._retry_create_folder(local_path, parent_node)
+        else:
+            rv = await self._retry_upload_file(local_path, parent_node)
+        return rv
+
+    async def _retry_create_folder(self, local_path, parent_node):
+        await self._log_begin(local_path)
+
+        while True:
+            try:
+                node = await self._drive.create_folder(local_path, parent_node)
+                break
+            except NetworkError as e:
+                wl.EXCEPTION('wcpan.drive.google', e) << e.error
+                if e.status not in ('599',) and e.fatal:
+                    self._add_failed(local_path)
+                    raise
+
+        await self._log_end(node)
+
+        for child_path in os.listdir(local_path):
+            child_path = op.join(local_path, child_path)
+            fn = ft.partial(self._internal_upload, child_path, node)
+            self._push(fn)
+
+        return node
+
+    async def _retry_upload_file(self, local_path, parent_node):
+        await self._log_begin(local_path)
+
+        while True:
+            try:
+                node = await self._drive.upload_file(local_path, parent_node)
+                break
+            except NetworkError as e:
+                wl.EXCEPTION('wcpan.drive.google', e) << e.error
+                if e.status not in ('599',) and e.fatal:
+                    self._add_failed(local_path)
+                    raise
+
+        await self._log_end(node)
+
+        return node
+
+    def _push(self, runnable):
+        loop = ti.IOLoop.current()
+        fn = ft.partial(self._do_upload_task, runnable)
+        loop.add_callback(fn)
+        self._counter = self._counter + 1
+
+    async def _do_upload_task(self, runnable):
         async with self._lock:
             with self._upload_counter():
-                wl.DEBUG('wcpan.gd') << 'tasks' << self._counter
                 await runnable()
+
+    def _add_failed(self, local_path):
+        self._failed.append(local_path)
 
     @cl.contextmanager
     def _upload_counter(self):
@@ -106,56 +165,17 @@ class UploadQueue(object):
             if self._counter <= 0:
                 self._final.notify()
 
+    async def _log_begin(self, local_path):
+        progress = self._get_progress()
+        wl.INFO('wcpan.drive.google') << '{0} begin {1}'.format(progress, local_path)
 
-async def upload(queue_, drive, local_path, parent_node):
-    if op.isdir(local_path):
-        rv = await retry_create_folder(queue_, drive, local_path, parent_node)
-    else:
-        rv = await retry_upload_file(queue_, drive, local_path, parent_node)
-    return rv
+    async def _log_end(self, remote_node):
+        progress = self._get_progress()
+        remote_path = await self._drive.get_path(remote_node)
+        wl.INFO('wcpan.drive.google') << '{0} end {1}'.format(progress, remote_path)
 
-
-async def retry_upload_file(queue_, drive, local_path, parent_node):
-    while True:
-        try:
-            rv = await drive.upload_file(local_path, parent_node)
-            break
-        except NetworkError as e:
-            wl.EXCEPTION('wcpan.gd', e) << e.error
-            if e.status not in ('599',) and e.fatal:
-                queue_.add_failed(local_path)
-                raise
-    return rv
-
-
-async def retry_create_folder(queue_, drive, local_path, parent_node):
-    while True:
-        try:
-            rv = await drive.create_folder(local_path, parent_node)
-            break
-        except NetworkError as e:
-            wl.EXCEPTION('wcpan.gd', e) << e.error
-            if e.status not in ('599',) and e.fatal:
-                queue_.add_failed(local_path)
-                raise
-
-    for child_path in os.listdir(local_path):
-        child_path = op.join(local_path, child_path)
-        fn = ft.partial(upload, queue_, drive, child_path, rv)
-        queue_.push(fn)
-
-    return rv
-
-
-async def upload_local_to_remote(drive, local_path, remote_path):
-    queue_ = UploadQueue()
-
-    node = drive.get_node_by_path(remote_path)
-    fn = ft.partial(upload, queue_, drive, local_path, node)
-    queue_.push(fn)
-    await tg.sleep(1)
-    await queue_.wait_for_complete()
-    print(queue_.failed)
+    def _get_progress(self):
+        return '[{0}/{1}]'.format(self._counter, self._total)
 
 
 async def main(args=None):
@@ -206,6 +226,11 @@ def parse_args(args):
     dl_parser.add_argument('id_or_path', type=str)
     dl_parser.add_argument('destination', type=str)
 
+    ul_parser = commands.add_parser('upload', aliases=['ul'])
+    ul_parser.set_defaults(action=action_upload)
+    ul_parser.add_argument('source', type=str)
+    ul_parser.add_argument('id_or_path', type=str)
+
     sout = io.StringIO()
     parser.print_help(sout)
     fallback = ft.partial(action_help, sout.getvalue())
@@ -250,6 +275,13 @@ async def action_tree(drive, args):
 async def action_download(drive, args):
     node = await get_node_by_id_or_path(drive, args.id_or_path)
     await drive.download_file(node, args.destination)
+    return 0
+
+
+async def action_upload(drive, args):
+    node = await get_node_by_id_or_path(drive, args.id_or_path)
+    queue_ = UploadQueue(drive)
+    await queue_.upload(args.source, node)
     return 0
 
 
