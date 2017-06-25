@@ -1,10 +1,8 @@
-import functools as ft
 import json
 import math
 import random
 import urllib.parse as up
 
-import pycurl
 from tornado import httpclient as thc, httputil as thu, gen as tg
 from wcpan.logger import DEBUG, EXCEPTION, WARNING
 
@@ -53,8 +51,7 @@ class Network(object):
         }
         if body is not None:
             if callable(body):
-                args['prepare_curl_callback'] = ft.partial(self._prepare_curl,
-                                                           read_function=body)
+                args['body_producer'] = body
             else:
                 args['body'] = body
         elif method == 'PUT':
@@ -110,10 +107,6 @@ class Network(object):
         s_delay = min(100, s_delay)
         DEBUG('wcpan.gd') << 'backoff for' << s_delay
         await tg.sleep(s_delay)
-
-    def _prepare_curl(self, curl, read_function=None):
-        if read_function is not None:
-            curl.setopt(pycurl.READFUNCTION, read_function)
 
 
 class Request(object):
@@ -213,8 +206,10 @@ class NetworkError(GoogleDriveError):
 
 
 def initialize():
-    # use cURL because the simple version is slow
-    thc.AsyncHTTPClient.configure('tornado.curl_httpclient.CurlAsyncHTTPClient')
+    args = {
+        'max_body_size': 10 * (1024 ** 3),
+    }
+    thc.AsyncHTTPClient.configure(None, **args)
 
 
 def backoff_needed(response):

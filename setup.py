@@ -13,7 +13,6 @@ setup(
         ],
         install_requires=[
             'PyDrive',
-            'pycurl',
             'tornado',
             'wcpan.logger',
             'wcpan.worker',
