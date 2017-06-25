@@ -79,7 +79,7 @@ class UploadQueue(object):
 
     async def upload(self, local_path, parent_node):
         self._total = self._count_tasks(local_path)
-        fn = ft.partial(self._internal_upload, child_path, node)
+        fn = ft.partial(self._internal_upload, local_path, parent_node)
         self._push(fn)
         await self._wait_for_complete()
 
