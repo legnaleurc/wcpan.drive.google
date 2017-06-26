@@ -78,6 +78,7 @@ class UploadQueue(object):
         self._failed = []
 
     async def upload(self, local_path_list, parent_node):
+        self._counter = 0
         self._total = sum(self._count_tasks(_) for _ in local_path_list)
         for local_path in local_path_list:
             fn = ft.partial(self._internal_upload, local_path, parent_node)
@@ -148,7 +149,6 @@ class UploadQueue(object):
         loop = ti.IOLoop.current()
         fn = ft.partial(self._do_upload_task, runnable)
         loop.add_callback(fn)
-        self._counter = self._counter + 1
 
     async def _do_upload_task(self, runnable):
         async with self._lock:
@@ -160,11 +160,11 @@ class UploadQueue(object):
 
     @cl.contextmanager
     def _upload_counter(self):
+        self._counter = self._counter + 1
         try:
             yield
         finally:
-            self._counter = self._counter - 1
-            if self._counter <= 0:
+            if self._counter == self._total:
                 self._final.notify()
 
     async def _log_begin(self, local_path):
