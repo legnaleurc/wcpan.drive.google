@@ -77,10 +77,11 @@ class UploadQueue(object):
         self._total = 0
         self._failed = []
 
-    async def upload(self, local_path, parent_node):
-        self._total = self._count_tasks(local_path)
-        fn = ft.partial(self._internal_upload, local_path, parent_node)
-        self._push(fn)
+    async def upload(self, local_path_list, parent_node):
+        self._total = sum(self._count_tasks(_) for _ in local_path_list)
+        for local_path in local_path_list:
+            fn = ft.partial(self._internal_upload, local_path, parent_node)
+            self._push(fn)
         await self._wait_for_complete()
 
     @property
@@ -229,7 +230,7 @@ def parse_args(args):
 
     ul_parser = commands.add_parser('upload', aliases=['ul'])
     ul_parser.set_defaults(action=action_upload)
-    ul_parser.add_argument('source', type=str)
+    ul_parser.add_argument('source', type=str, nargs='+')
     ul_parser.add_argument('id_or_path', type=str)
 
     sout = io.StringIO()
