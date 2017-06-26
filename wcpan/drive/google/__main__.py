@@ -106,9 +106,10 @@ class UploadQueue(object):
     async def _retry_create_folder(self, local_path, parent_node):
         await self._log_begin(local_path)
 
+        folder_name = op.basename(local_path)
         while True:
             try:
-                node = await self._drive.create_folder(local_path, parent_node)
+                node = await self._drive.create_folder(parent_node, folder_name)
                 break
             except NetworkError as e:
                 wl.EXCEPTION('wcpan.drive.google', e) << e.error
