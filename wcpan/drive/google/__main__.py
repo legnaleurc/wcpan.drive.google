@@ -231,7 +231,7 @@ class DownloadQueue(object):
             wl.EXCEPTION('wcpan.drive.google', e) << e.error
             self._add_failed(node)
 
-        await self._log_end(local_path)
+        await self._log_end(full_path)
 
         children = await self._drive.get_children(node)
         for child in children:
@@ -253,6 +253,7 @@ class DownloadQueue(object):
                     self._add_failed(node)
                     raise
 
+        full_path = op.join(local_path, node.name)
         await self._log_end(local_path)
 
         return rv
