@@ -180,6 +180,118 @@ class UploadQueue(object):
         return '[{0}/{1}]'.format(self._counter, self._total)
 
 
+class DownloadQueue(object):
+
+    def __init__(self, drive):
+        self._drive = drive
+        self._lock = tl.Semaphore(value=8)
+        self._final = tl.Condition()
+        self._counter = 0
+        self._total = 0
+        self._failed = []
+
+    async def download(self, node_list, local_path):
+        self._counter = 0
+        total = (self._count_tasks(_) for _ in node_list)
+        total = await tg.multi(total)
+        self._total = sum(total)
+        for node in node_list:
+            fn = ft.partial(self._internal_download, node, local_path)
+            self._push(fn)
+        await self._wait_for_complete()
+
+    @property
+    def failed(self):
+        return self._failed
+
+    async def _count_tasks(self, node):
+        total = 1
+        children = await self._drive.get_children(node)
+        count = (self._count_tasks(_) for _ in children)
+        count = await tg.multi(count)
+        return total + sum(count)
+
+    async def _wait_for_complete(self):
+        await self._final.wait()
+
+    async def _internal_download(self, node, local_path):
+        if node.is_folder:
+            rv = await self._create_folder(node, local_path)
+        else:
+            rv = await self._retry_download_file(node, local_path)
+        return rv
+
+    async def _create_folder(self, node, local_path):
+        await self._log_begin(node)
+
+        full_path = op.join(local_path, node.name)
+        try:
+            os.makedirs(full_path, exist_ok=True)
+        except Exception as e:
+            wl.EXCEPTION('wcpan.drive.google', e) << e.error
+            self._add_failed(node)
+
+        await self._log_end(local_path)
+
+        children = await self._drive.get_children(node)
+        for child in children:
+            fn = ft.partial(self._internal_download, child, full_path)
+            self._push(fn)
+
+        return full_path
+
+    async def _retry_download_file(self, node, local_path):
+        await self._log_begin(node)
+
+        while True:
+            try:
+                rv = await self._drive.download_file(node, local_path)
+                break
+            except NetworkError as e:
+                wl.EXCEPTION('wcpan.drive.google', e) << e.error
+                if e.status not in ('599',) and e.fatal:
+                    self._add_failed(node)
+                    raise
+
+        await self._log_end(local_path)
+
+        return rv
+
+    def _push(self, runnable):
+        loop = ti.IOLoop.current()
+        fn = ft.partial(self._do_download_task, runnable)
+        loop.add_callback(fn)
+
+    async def _do_download_task(self, runnable):
+        async with self._lock:
+            with self._download_counter():
+                await runnable()
+
+    def _add_failed(self, local_path):
+        self._failed.append(local_path)
+
+    @cl.contextmanager
+    def _download_counter(self):
+        self._counter = self._counter + 1
+        try:
+            yield
+        finally:
+            if self._counter == self._total:
+                self._final.notify()
+
+    async def _log_begin(self, remote_node):
+        progress = self._get_progress()
+        remote_path = await self._drive.get_path(remote_node)
+        wl.INFO('wcpan.drive.google') << '{0} begin {1}'.format(progress, remote_path)
+
+    async def _log_end(self, local_path):
+        progress = self._get_progress()
+        wl.INFO('wcpan.drive.google') << '{0} end {1}'.format(progress, local_path)
+
+    def _get_progress(self):
+        return '[{0}/{1}]'.format(self._counter, self._total)
+
+
 async def main(args=None):
     if args is None:
         args = sys.argv
@@ -225,7 +337,7 @@ def parse_args(args):
 
     dl_parser = commands.add_parser('download', aliases=['dl'])
     dl_parser.set_defaults(action=action_download)
-    dl_parser.add_argument('id_or_path', type=str)
+    dl_parser.add_argument('id_or_path', type=str, nargs='+')
     dl_parser.add_argument('destination', type=str)
 
     ul_parser = commands.add_parser('upload', aliases=['ul'])
@@ -275,8 +387,10 @@ async def action_tree(drive, args):
 
 
 async def action_download(drive, args):
-    node = await get_node_by_id_or_path(drive, args.id_or_path)
-    await drive.download_file(node, args.destination)
+    node_list = (get_node_by_id_or_path(drive, _) for _ in args.id_or_path)
+    node_list = await tg.multi(node_list)
+    queue_ = DownloadQueue(drive)
+    await queue_.download(node_list, args.destination)
     return 0
 
 
