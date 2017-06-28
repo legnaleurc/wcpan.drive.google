@@ -152,20 +152,13 @@ class UploadQueue(object):
 
     async def _do_upload_task(self, runnable):
         async with self._lock:
-            with self._upload_counter():
-                await runnable()
+            await runnable()
+            self._counter = self._counter + 1
+            if self._counter == self._total:
+                self._final.notify()
 
     def _add_failed(self, local_path):
         self._failed.append(local_path)
-
-    @cl.contextmanager
-    def _upload_counter(self):
-        self._counter = self._counter + 1
-        try:
-            yield
-        finally:
-            if self._counter == self._total:
-                self._final.notify()
 
     async def _log_begin(self, local_path):
         progress = self._get_progress()
