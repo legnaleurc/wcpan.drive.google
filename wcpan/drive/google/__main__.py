@@ -254,7 +254,7 @@ class DownloadQueue(object):
                     raise
 
         full_path = op.join(local_path, node.name)
-        await self._log_end(local_path)
+        await self._log_end(full_path)
 
         return rv
 
@@ -265,20 +265,13 @@ class DownloadQueue(object):
 
     async def _do_download_task(self, runnable):
         async with self._lock:
-            with self._download_counter():
-                await runnable()
+            await runnable()
+            self._counter = self._counter + 1
+            if self._counter == self._total:
+                self._final.notify()
 
     def _add_failed(self, local_path):
         self._failed.append(local_path)
-
-    @cl.contextmanager
-    def _download_counter(self):
-        self._counter = self._counter + 1
-        try:
-            yield
-        finally:
-            if self._counter == self._total:
-                self._final.notify()
 
     async def _log_begin(self, remote_node):
         progress = self._get_progress()
