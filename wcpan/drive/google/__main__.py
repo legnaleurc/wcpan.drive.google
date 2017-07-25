@@ -29,13 +29,13 @@ async def verify_upload_directory(drive, local_path, remote_node):
 
     child_node = drive.get_child_by_id(remote_node.id_, dir_name)
     if not child_node:
-        wl.ERROR('wcpan.gd') << 'not found : {0}'.format(local_path)
+        wl.ERROR('wcpan.drive.google') << 'not found : {0}'.format(local_path)
         return
     if not child_node.is_folder:
-        wl.ERROR('wcpan.gd') << 'should be folder : {0}'.format(local_path)
+        wl.ERROR('wcpan.drive.google') << 'should be folder : {0}'.format(local_path)
         return
 
-    wl.INFO('wcpan.gd') << 'ok : {0}'.format(local_path)
+    wl.INFO('wcpan.drive.google') << 'ok : {0}'.format(local_path)
 
     for child_path in local_path.iterdir():
         await verify_upload(drive, child_path, child_node)
@@ -49,22 +49,22 @@ async def verify_upload_file(drive, local_path, remote_node):
     child_node = drive.get_child_by_id(remote_node.id_, file_name)
 
     if not child_node:
-        wl.ERROR('wcpan.gd') << 'not found : {0}'.format(local_path)
+        wl.ERROR('wcpan.drive.google') << 'not found : {0}'.format(local_path)
         return
     if child_node.is_folder:
-        wl.ERROR('wcpan.gd') << 'should be file : {0}'.format(local_path)
+        wl.ERROR('wcpan.drive.google') << 'should be file : {0}'.format(local_path)
         return
     if not child_node.available:
-        wl.ERROR('wcpan.gd') << 'trashed : {0}'.format(local_path)
+        wl.ERROR('wcpan.drive.google') << 'trashed : {0}'.format(local_path)
         return
 
     with open(local_path, 'rb') as fin:
         local_md5 = stream_md5sum(fin)
     if local_md5 != child_node.md5:
-        wl.ERROR('wcpan.gd') << 'md5 mismatch : {0}'.format(local_path)
+        wl.ERROR('wcpan.drive.google') << 'md5 mismatch : {0}'.format(local_path)
         return
 
-    wl.INFO('wcpan.gd') << 'ok : {0}'.format(local_path)
+    wl.INFO('wcpan.drive.google') << 'ok : {0}'.format(local_path)
 
 
 class UploadQueue(object):
