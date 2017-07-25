@@ -332,6 +332,10 @@ def parse_args(args):
     ul_parser.add_argument('source', type=str, nargs='+')
     ul_parser.add_argument('id_or_path', type=str)
 
+    rm_parser = commands.add_parser('remove', aliases=['rm'])
+    rm_parser.set_defaults(action=action_remove)
+    rm_parser.add_argument('id_or_path', type=str, nargs='+')
+
     sout = io.StringIO()
     parser.print_help(sout)
     fallback = ft.partial(action_help, sout.getvalue())
@@ -388,6 +392,16 @@ async def action_upload(drive, args):
     return 0
 
 
+async def action_remove(drive, args):
+    rv = (trash_node(drive, _) for _ in args.id_or_path)
+    rv = await tg.multi(rv)
+    rv = filter(None, rv)
+    rv = list(rv)
+    if rv:
+        print_as_yaml(rv)
+    return 0
+
+
 async def get_node_by_id_or_path(drive, id_or_path):
     if id_or_path[0] == '/':
         node = await drive.get_node_by_path(id_or_path)
@@ -409,6 +423,22 @@ async def traverse_node(drive, node, level):
         children = await drive.get_children_by_id(node.id_)
         for child in children:
             await traverse_node(drive, child, level + 1)
+
+
+async def trash_node(drive, id_or_path):
+    '''
+    :returns: None if succeed, id_or_path if failed
+    '''
+    node = await get_node_by_id_or_path(drive, id_or_path)
+    if not node:
+        return id_or_path
+    try:
+        rv = await drive.trash_node(node)
+    except Exception as e:
+        return id_or_path
+    if not rv:
+        return id_or_path
+    return None
 
 
 def print_node(name, level):
