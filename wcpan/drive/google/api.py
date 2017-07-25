@@ -334,6 +334,7 @@ class Files(object):
             'Content-Length': len(metadata),
         }
 
-        rv = await self._client._do_request('PATCH', self._root,
-                                            headers=headers, body=metadata)
+        uri = self._root + '/' + file_id
+        rv = await self._client._do_request('PATCH', uri, headers=headers,
+                                            body=metadata)
         return rv
