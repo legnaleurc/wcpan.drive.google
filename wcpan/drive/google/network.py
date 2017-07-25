@@ -105,7 +105,7 @@ class Network(object):
         power = 2 ** self._backoff_level
         s_delay = math.floor(seed * power * BACKOFF_FACTOR)
         s_delay = min(100, s_delay)
-        DEBUG('wcpan.gd') << 'backoff for' << s_delay
+        DEBUG('wcpan.drive.google') << 'backoff for' << s_delay
         await tg.sleep(s_delay)
 
 
@@ -154,7 +154,7 @@ class Response(object):
                 try:
                     rv = json.loads(rv)
                 except ValueError as e:
-                    EXCEPTION('wcpan.gd') << rv
+                    EXCEPTION('wcpan.drive.google') << rv
                     rv = None
             self._json = rv
             self._parsed_json = True

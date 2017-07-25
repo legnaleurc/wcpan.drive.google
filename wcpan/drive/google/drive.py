@@ -187,7 +187,7 @@ class Drive(object):
         # do not create again if there is a same file
         node = await self.fetch_child_by_id(parent_node.id_, folder_name)
         if node:
-            INFO('wcpan.gd') << 'skipped (existing)' << folder_name
+            INFO('wcpan.drive.google') << 'skipped (existing)' << folder_name
             return node
 
         api = self._client.files
@@ -214,7 +214,7 @@ class Drive(object):
         node = await self.fetch_child_by_id(parent_node.id_, file_name)
         if node:
             if exist_ok:
-                INFO('wcpan.gd') << 'skipped (existing)' << file_path
+                INFO('wcpan.drive.google') << 'skipped (existing)' << file_path
                 return node
             else:
                 raise UploadConflictedError(file_path)
@@ -255,7 +255,7 @@ class Drive(object):
                 break
             except NetworkError as e:
                 if e.status == '400':
-                    DEBUG('wcpan.gd') << 'failed query:' << query
+                    DEBUG('wcpan.drive.google') << 'failed query:' << query
                 if e.fatal:
                     raise
 

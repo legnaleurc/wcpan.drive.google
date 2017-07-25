@@ -62,7 +62,7 @@ class Client(object):
         return self._api['files']
 
     def _refresh_token(self):
-        DEBUG('wcpan.gd') << 'refresh token'
+        DEBUG('wcpan.drive.google') << 'refresh token'
         self._oauth.Refresh()
         self._network.set_access_token(self._oauth.credentials.access_token)
 
