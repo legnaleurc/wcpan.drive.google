@@ -311,12 +311,8 @@ def parse_args(args):
     sync_parser.set_defaults(action=action_sync)
 
     dl_parser = commands.add_parser('find', aliases=['f'])
-    dl_parser.add_argument('--id-only', dest='id_only', action='store_true')
-    dl_parser.add_argument('--no-id-only', dest='id_only', action='store_false')
-    dl_parser.add_argument('--include-trash', dest='include_trash',
-                           action='store_true')
-    dl_parser.add_argument('--no-include-trash', dest='include_trash',
-                           action='store_false')
+    add_bool_argument(dl_parser, 'id_only')
+    add_bool_argument(dl_parser, 'include_trash')
     dl_parser.add_argument('pattern', type=str)
     dl_parser.set_defaults(action=action_find, id_only=False,
                            include_trash=False)
@@ -351,6 +347,14 @@ def parse_args(args):
     args = parser.parse_args(args)
 
     return args
+
+
+def add_bool_argument(parser, name):
+    flag = name.replace('_', '-')
+    pos_flag = '--' + flag
+    neg_flag = '--no-' + flag
+    parser.add_argument(pos_flag, dest=name, action='store_true')
+    parser.add_argument(neg_flag, dest=name, action='store_false')
 
 
 async def action_help(message):
