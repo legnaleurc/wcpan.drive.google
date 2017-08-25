@@ -311,8 +311,10 @@ def parse_args(args):
     sync_parser.set_defaults(action=action_sync)
 
     dl_parser = commands.add_parser('find', aliases=['f'])
-    dl_parser.set_defaults(action=action_find)
+    dl_parser.add_argument('--id-only', dest='id_only', action='store_true')
+    dl_parser.add_argument('--no-id-only', dest='id_only', action='store_false')
     dl_parser.add_argument('pattern', type=str)
+    dl_parser.set_defaults(action=action_find, id_only=False)
 
     list_parser = commands.add_parser('list', aliases=['ls'])
     list_parser.set_defaults(action=action_list)
@@ -359,7 +361,13 @@ async def action_find(drive, args):
     nodes = await drive.find_nodes_by_regex(args.pattern)
     nodes = {_.id_: drive.get_path(_) for _ in nodes}
     nodes = await tg.multi(nodes)
-    print_as_yaml(nodes)
+
+    if args.id_only:
+        for id_ in nodes:
+            print(id_)
+    else:
+        print_as_yaml(nodes)
+
     return 0
 
 
