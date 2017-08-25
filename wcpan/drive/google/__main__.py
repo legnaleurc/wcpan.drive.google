@@ -313,8 +313,13 @@ def parse_args(args):
     dl_parser = commands.add_parser('find', aliases=['f'])
     dl_parser.add_argument('--id-only', dest='id_only', action='store_true')
     dl_parser.add_argument('--no-id-only', dest='id_only', action='store_false')
+    dl_parser.add_argument('--include-trash', dest='include_trash',
+                           action='store_true')
+    dl_parser.add_argument('--no-include-trash', dest='include_trash',
+                           action='store_false')
     dl_parser.add_argument('pattern', type=str)
-    dl_parser.set_defaults(action=action_find, id_only=False)
+    dl_parser.set_defaults(action=action_find, id_only=False,
+                           include_trash=False)
 
     list_parser = commands.add_parser('list', aliases=['ls'])
     list_parser.set_defaults(action=action_list)
@@ -359,6 +364,8 @@ async def action_sync(drive, args):
 
 async def action_find(drive, args):
     nodes = await drive.find_nodes_by_regex(args.pattern)
+    if not args.include_trash:
+        nodes = (_ for _ in nodes if _.is_available)
     nodes = {_.id_: drive.get_path(_) for _ in nodes}
     nodes = await tg.multi(nodes)
 
