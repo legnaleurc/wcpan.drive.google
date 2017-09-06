@@ -111,6 +111,7 @@ class CommandLineOAuth2Handler(ta.GoogleOAuth2Mixin):
                                       scope=['https://www.googleapis.com/auth/drive'],
                                       client_id=self._client_id)
         token = await self.get_authenticated_user(self._redirect_uri, code=self._code)
+        self._code = ''
         self._save_token(token)
 
     @property
