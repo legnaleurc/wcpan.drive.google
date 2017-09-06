@@ -4,7 +4,7 @@ import random
 import urllib.parse as up
 
 from tornado import httpclient as thc, httputil as thu, gen as tg
-from wcpan.logger import DEBUG, EXCEPTION, WARNING
+from wcpan.logger import DEBUG, EXCEPTION, INFO, WARNING
 
 from .util import GoogleDriveError
 
