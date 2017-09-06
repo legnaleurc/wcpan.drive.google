@@ -1,11 +1,10 @@
 import json
 from typing import Awaitable, Callable, Dict, Tuple
 
-from pydrive.auth import GoogleAuth
 from wcpan.logger import EXCEPTION, DEBUG
 
 from .network import Network, Response, NetworkError
-from .util import FOLDER_MIME_TYPE
+from .util import CommandLineOAuth2Handler, FOLDER_MIME_TYPE
 
 
 API_ROOT = 'https://www.googleapis.com/drive/v3'
@@ -24,7 +23,7 @@ class Client(object):
         self._network = None
         self._api = None
 
-    def initialize(self):
+    async def initialize(self):
         if self._oauth:
             return
 
@@ -37,13 +36,10 @@ class Client(object):
             'save_credentials_backend': s['save_credentials_backend'],
             'save_credentials_file': s['save_credentials_file'],
         }
-        self._oauth = GoogleAuth()
-        # HACK undocumented behavior
-        self._oauth.settings.update(args)
-        self._oauth.CommandLineAuth()
-        # HACK undocumented behavior
+        self._oauth = CommandLineOAuth2Handler(args)
+        await self._oauth.authorize()
         self._network = Network()
-        self._network.set_access_token(self._oauth.credentials.access_token)
+        self._network.set_access_token(self._oauth.access_token)
         self._api = {
             'changes': Changes(self),
             'files': Files(self),
@@ -61,10 +57,10 @@ class Client(object):
     def files(self):
         return self._api['files']
 
-    def _refresh_token(self):
+    async def _refresh_token(self):
         DEBUG('wcpan.drive.google') << 'refresh token'
-        self._oauth.Refresh()
-        self._network.set_access_token(self._oauth.credentials.access_token)
+        await self._oauth.refresh_access_token()
+        self._network.set_access_token(self._oauth.access_token)
 
     async def _do_request(self, *args, **kwargs):
         while True:
@@ -74,7 +70,7 @@ class Client(object):
             except NetworkError as e:
                 if e.status != '401':
                     raise
-            self._refresh_token()
+            await self._refresh_token()
         return rv
 
 

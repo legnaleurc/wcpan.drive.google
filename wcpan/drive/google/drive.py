@@ -35,8 +35,8 @@ class Drive(object):
         self._pool.shutdown()
         self._db.close()
 
-    def initialize(self):
-        self._client.initialize()
+    async def initialize(self):
+        await self._client.initialize()
         self._db.initialize()
 
     async def sync(self):

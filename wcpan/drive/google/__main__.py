@@ -297,7 +297,7 @@ async def main(args=None):
 
     path = op.expanduser('~/.cache/wcpan/drive/google')
     drive = Drive(path)
-    drive.initialize()
+    await drive.initialize()
 
     return await args.action(drive, args)
 
