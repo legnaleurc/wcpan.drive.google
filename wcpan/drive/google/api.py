@@ -4,7 +4,7 @@ from typing import Awaitable, Callable, Dict, List, Tuple
 from wcpan.logger import EXCEPTION, DEBUG
 
 from .network import Network, Response, NetworkError
-from .util import CommandLineOAuth2Handler, FOLDER_MIME_TYPE
+from .util import CommandLineOAuth2Handler, FOLDER_MIME_TYPE, Settings
 
 
 API_ROOT = 'https://www.googleapis.com/drive/v3'
@@ -17,13 +17,13 @@ Producer = Callable[[Callable[[bytes], Awaitable[None]]], Awaitable[None]]
 
 class Client(object):
 
-    def __init__(self, settings):
+    def __init__(self, settings: Settings) -> None:
         self._settings = settings
         self._oauth = None
         self._network = None
         self._api = None
 
-    async def initialize(self):
+    async def initialize(self) -> Awaitable[None]:
         if self._oauth:
             return
 
@@ -46,23 +46,23 @@ class Client(object):
         }
 
     @property
-    def authorized(self):
+    def authorized(self) -> bool:
         return self._oauth is not None
 
     @property
-    def changes(self):
+    def changes(self) -> Changes:
         return self._api['changes']
 
     @property
-    def files(self):
+    def files(self) -> Files:
         return self._api['files']
 
-    async def _refresh_token(self):
+    async def _refresh_token(self) -> Awaitable[None]:
         DEBUG('wcpan.drive.google') << 'refresh token'
         await self._oauth.refresh_access_token()
         self._network.set_access_token(self._oauth.access_token)
 
-    async def _do_request(self, *args, **kwargs):
+    async def _do_request(self, *args, **kwargs) -> Awaitable[Response]:
         while True:
             try:
                 rv = await self._network.fetch(*args, **kwargs)
