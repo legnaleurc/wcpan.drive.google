@@ -12,6 +12,7 @@ setup(
             'wcpan.drive.google',
         ],
         install_requires=[
+            'PyYAML',
             'tornado',
             'wcpan.logger',
             'wcpan.worker',
