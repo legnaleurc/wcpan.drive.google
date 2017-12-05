@@ -50,11 +50,11 @@ class Client(object):
         return self._oauth is not None
 
     @property
-    def changes(self) -> Changes:
+    def changes(self) -> 'Changes':
         return self._api['changes']
 
     @property
-    def files(self) -> Files:
+    def files(self) -> 'Files':
         return self._api['files']
 
     async def _refresh_token(self) -> Awaitable[None]:
