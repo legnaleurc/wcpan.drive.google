@@ -289,7 +289,7 @@ class Drive(object):
     async def trash_node(self, node):
         return await self.trash_node_by_id(node.id_)
 
-    async def rename_node(self, src_path, dst_path):
+    async def rename_node_by_path(self, src_path, dst_path):
         src_node = await self.get_node_by_path(src_path)
         if not src_node:
             raise FileNotFoundError(src_path)
