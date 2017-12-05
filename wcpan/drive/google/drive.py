@@ -299,15 +299,19 @@ class Drive(object):
         if dst_node and dst_node.is_file:
             raise FileConflictedError(dst_path)
 
-        # just move to this folder
         if dst_node:
+            # just move to this folder
             await self._inner_rename_node(src_node.id_, None, dst_node.id_)
-            return
+        else:
+            # move to the parent folder
+            dst_folder, dst_name = op.split(dst_path)
+            parent_id = await self.get_node_by_path(dst_folder)
+            await self._inner_rename_node(src_node.id_, dst_name, parent_id)
 
-        # move to the parent folder
-        dst_folder, dst_name = op.split(dst_path)
-        parent_id = await self.get_node_by_path(dst_folder)
-        await self._inner_rename_node(src_node.id_, dst_name, parent_id)
+        # update local cache
+        node = await self.fetch_node_by_id(src_node.id_)
+        self._db.insert_node(node)
+        return node
 
     async def _inner_upload_file(self, file_path, file_name, total_file_size,
                                  parent_id, mime_type):
