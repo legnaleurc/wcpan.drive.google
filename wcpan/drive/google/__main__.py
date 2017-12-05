@@ -339,6 +339,11 @@ def parse_args(args):
     rm_parser.set_defaults(action=action_remove)
     rm_parser.add_argument('id_or_path', type=str, nargs='+')
 
+    mv_parser = commands.add_parser('rename', aliases=['mv'])
+    mv_parser.set_defaults(action=action_rename)
+    mv_parser.add_argument('source_path', type=str)
+    mv_parser.add_argument('destination_path', type=str)
+
     sout = io.StringIO()
     parser.print_help(sout)
     fallback = ft.partial(action_help, sout.getvalue())
@@ -419,6 +424,13 @@ async def action_remove(drive, args):
     if rv:
         print_as_yaml(rv)
     return 0
+
+
+async def action_rename(drive, args):
+    node = await drive.rename_node_by_path(args.source_path,
+                                           args.destination_path)
+    path = await drive.get_path(node)
+    return path
 
 
 async def get_node_by_id_or_path(drive, id_or_path):
