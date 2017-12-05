@@ -301,12 +301,12 @@ class Drive(object):
 
         if dst_node:
             # just move to this folder
-            await self._inner_rename_node(src_node.id_, None, dst_node.id_)
+            await self._inner_rename_node(src_node, None, dst_node.id_)
         else:
             # move to the parent folder
             dst_folder, dst_name = op.split(dst_path)
             parent_id = await self.get_node_by_path(dst_folder)
-            await self._inner_rename_node(src_node.id_, dst_name, parent_id)
+            await self._inner_rename_node(src_node, dst_name, parent_id)
 
         # update local cache
         node = await self.fetch_node_by_id(src_node.id_)
@@ -389,11 +389,13 @@ class Drive(object):
     def _apply_changes(self, changes, check_point):
         self._db.apply_changes(changes, check_point)
 
-    async def _inner_rename_node(self, node_id, name, parent_id):
+    async def _inner_rename_node(self, node, name, new_parent_id):
+        api = self._client.files
         while True:
             try:
-                rv = await self._client.files.update(file_id=node_id, name=name,
-                                                     parent_id=parent_id)
+                rv = await api.update(file_id=node.id_, name=name,
+                                      add_parents=[new_parent_id],
+                                      remove_parents=[node.parent_id])
                 break
             except NetworkError as e:
                 if e.fatal:

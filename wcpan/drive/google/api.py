@@ -1,5 +1,5 @@
 import json
-from typing import Awaitable, Callable, Dict, Tuple
+from typing import Awaitable, Callable, Dict, List, Tuple
 
 from wcpan.logger import EXCEPTION, DEBUG
 
@@ -316,16 +316,22 @@ class Files(object):
         return rv
 
     async def update(self, file_id: str, name: str = None,
-                     parent_id: str = None, trashed: bool = None) -> Response:
+                     add_parents: List[str] = None,
+                     remove_parents: List[str] = None,
+                     trashed: bool = None) -> Response:
+        args = {}
+        if add_parents is not None:
+            args['addParents'] = ','.join(add_parents)
+        if remove_parents is not None:
+            args['removeParents'] = ','.join(remove_parents)
+
         metadata = {}
         if name is not None:
             metadata['name'] = name
-        if parent_id is not None:
-            metadata['parents'] = [parent_id]
         if trashed is not None:
             metadata['trashed'] = trashed
 
-        if not metadata:
+        if not args and not metadata:
             raise ValueError('not enough parameter')
 
         metadata = json.dumps(metadata)
@@ -336,6 +342,6 @@ class Files(object):
         }
 
         uri = self._root + '/' + file_id
-        rv = await self._client._do_request('PATCH', uri, headers=headers,
+        rv = await self._client._do_request('PATCH', uri, args, headers=headers,
                                             body=metadata)
         return rv
