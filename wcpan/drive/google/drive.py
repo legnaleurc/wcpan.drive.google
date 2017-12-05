@@ -219,7 +219,7 @@ class Drive(object):
                 INFO('wcpan.drive.google') << 'skipped (existing)' << file_path
                 return node
             else:
-                raise UploadConflictedError(file_path)
+                raise FileConflictedError(file_path)
 
         total_file_size = op.getsize(file_path)
         mt, e = mimetypes.guess_type(file_path)
@@ -288,6 +288,26 @@ class Drive(object):
 
     async def trash_node(self, node):
         return await self.trash_node_by_id(node.id_)
+
+    async def rename_node(self, src_path, dst_path):
+        src_node = await self.get_node_by_path(src_path)
+        if not src_node:
+            raise FileNotFoundError(src_path)
+
+        dst_node = await self.get_node_by_path(dst_path)
+        # do not support overwriting
+        if dst_node and dst_node.is_file:
+            raise FileConflictedError(dst_path)
+
+        # just move to this folder
+        if dst_node:
+            await self._inner_rename_node(src_node.id_, None, dst_node.id_)
+            return
+
+        # move to the parent folder
+        dst_folder, dst_name = op.split(dst_path)
+        parent_id = await self.get_node_by_path(dst_folder)
+        await self._inner_rename_node(src_node.id_, dst_name, parent_id)
 
     async def _inner_upload_file(self, file_path, file_name, total_file_size,
                                  parent_id, mime_type):
@@ -365,6 +385,17 @@ class Drive(object):
     def _apply_changes(self, changes, check_point):
         self._db.apply_changes(changes, check_point)
 
+    async def _inner_rename_node(self, node_id, name, parent_id):
+        while True:
+            try:
+                rv = await self._client.files.update(file_id=node_id, name=name,
+                                                     parent_id=parent_id)
+                break
+            except NetworkError as e:
+                if e.fatal:
+                    raise
+        return rv
+
 
 class DownloadError(GoogleDriveError):
 
@@ -384,7 +415,7 @@ class UploadError(GoogleDriveError):
         return self._message
 
 
-class UploadConflictedError(UploadError):
+class FileConflictedError(GoogleDriveError):
 
     def __init__(self, file_path):
         self._file_path = file_path

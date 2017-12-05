@@ -315,8 +315,13 @@ class Files(object):
                                             body=metadata)
         return rv
 
-    async def update(self, file_id: str, trashed: bool = None) -> Response:
+    async def update(self, file_id: str, name: str = None,
+                     parent_id: str = None, trashed: bool = None) -> Response:
         metadata = {}
+        if name is not None:
+            metadata['name'] = name
+        if parent_id is not None:
+            metadata['parent_id'] = parent_id
         if trashed is not None:
             metadata['trashed'] = trashed
 
