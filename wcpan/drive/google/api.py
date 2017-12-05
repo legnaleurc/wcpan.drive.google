@@ -321,7 +321,7 @@ class Files(object):
         if name is not None:
             metadata['name'] = name
         if parent_id is not None:
-            metadata['parent_id'] = parent_id
+            metadata['parents'] = [parent_id]
         if trashed is not None:
             metadata['trashed'] = trashed
 
