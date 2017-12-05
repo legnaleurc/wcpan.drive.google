@@ -185,7 +185,8 @@ class Drive(object):
             raise UploadError('invalid parent node')
 
         # do not create again if there is a same file
-        node = await self.fetch_child_by_id(parent_node.id_, folder_name)
+        node = await self.fetch_node_by_name_from_parent_id(folder_name,
+                                                            parent_node.id_)
         if node:
             INFO('wcpan.drive.google') << 'skipped (existing)' << folder_name
             return node
@@ -211,7 +212,8 @@ class Drive(object):
         file_name = op.basename(file_path)
 
         # do not upload if remote exists a same file
-        node = await self.fetch_child_by_id(parent_node.id_, file_name)
+        node = await self.fetch_node_by_name_from_parent_id(file_name,
+                                                            parent_node.id_)
         if node:
             if exist_ok:
                 INFO('wcpan.drive.google') << 'skipped (existing)' << file_path
@@ -244,9 +246,9 @@ class Drive(object):
 
         return node
 
-    async def fetch_child_by_id(self, node_id, name):
+    async def fetch_node_by_name_from_parent_id(self, name, parent_id):
         safe_name = re.sub(r"[\\']", r"\\\g<0>", name)
-        query = "'{0}' in parents and name = '{1}'".format(node_id,
+        query = "'{0}' in parents and name = '{1}'".format(parent_id,
                                                            safe_name)
         fields = 'files({0})'.format(FILE_FIELDS)
         while True:
