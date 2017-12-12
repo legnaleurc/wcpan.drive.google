@@ -189,6 +189,8 @@ class DownloadQueue(object):
         total = await tg.multi(total)
         self._total = sum(total)
         for node in node_list:
+            if node.is_trashed:
+                continue
             fn = ft.partial(self._internal_download, node, local_path)
             self._push(fn)
         await self._wait_for_complete()
