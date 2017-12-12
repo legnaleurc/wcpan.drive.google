@@ -310,12 +310,12 @@ def parse_args(args):
     sync_parser = commands.add_parser('sync', aliases=['s'])
     sync_parser.set_defaults(action=action_sync)
 
-    dl_parser = commands.add_parser('find', aliases=['f'])
-    add_bool_argument(dl_parser, 'id_only')
-    add_bool_argument(dl_parser, 'include_trash')
-    dl_parser.add_argument('pattern', type=str)
-    dl_parser.set_defaults(action=action_find, id_only=False,
-                           include_trash=False)
+    find_parser = commands.add_parser('find', aliases=['f'])
+    add_bool_argument(find_parser, 'id_only')
+    add_bool_argument(find_parser, 'include_trash')
+    find_parser.add_argument('pattern', type=str)
+    find_parser.set_defaults(action=action_find, id_only=False,
+                             include_trash=False)
 
     list_parser = commands.add_parser('list', aliases=['ls'])
     list_parser.set_defaults(action=action_list)
