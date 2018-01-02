@@ -149,7 +149,9 @@ class Response(object):
     def json_(self):
         if not self._parsed_json:
             rv = self._response.body
-            if rv:
+            if not rv:
+                rv = None
+            else:
                 rv = rv.decode('utf-8')
                 try:
                     rv = json.loads(rv)
@@ -219,6 +221,10 @@ def backoff_needed(response):
     # if it is not a rate limit error, it could be handled immediately
     if response.status == '403':
         msg = response.json_
+        if not msg:
+            WARNING('wcpan.drive.google') << '403 with empty error message'
+            # probably server problem, backoff for safety
+            return True
         domain = msg['error']['errors'][0]['domain']
         if domain != 'usageLimits':
             return False
