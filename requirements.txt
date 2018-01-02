@@ -1,4 +1,4 @@
 PyYAML
 tornado
 wcpan.logger
-wcpan.worker
+wcpan.worker >= 1.3

@@ -15,7 +15,7 @@ setup(
             'PyYAML',
             'tornado',
             'wcpan.logger',
-            'wcpan.worker',
+            'wcpan.worker >= 1.3',
         ],
         classifiers=[
             'Programming Language :: Python :: 3 :: Only',
