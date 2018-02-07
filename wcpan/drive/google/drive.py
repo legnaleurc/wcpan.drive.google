@@ -177,7 +177,7 @@ class Drive(object):
 
         return True
 
-    async def create_folder(self, parent_node, folder_name):
+    async def create_folder(self, parent_node, folder_name, exist_ok=False):
         # sanity check
         if not parent_node:
             raise UploadError('invalid parent node')
@@ -188,8 +188,11 @@ class Drive(object):
         node = await self.fetch_node_by_name_from_parent_id(folder_name,
                                                             parent_node.id_)
         if node:
-            INFO('wcpan.drive.google') << 'skipped (existing)' << folder_name
-            return node
+            if exist_ok:
+                INFO('wcpan.drive.google') << 'skipped (existing)' << folder_name
+                return node
+            else:
+                raise FileConflictedError(node)
 
         api = self._client.files
         rv = await api.create_folder(folder_name=folder_name,
@@ -219,7 +222,7 @@ class Drive(object):
                 INFO('wcpan.drive.google') << 'skipped (existing)' << file_path
                 return node
             else:
-                raise FileConflictedError(file_path)
+                raise FileConflictedError(node)
 
         total_file_size = op.getsize(file_path)
         mt, e = mimetypes.guess_type(file_path)
@@ -423,11 +426,11 @@ class UploadError(GoogleDriveError):
 
 class FileConflictedError(GoogleDriveError):
 
-    def __init__(self, file_path):
-        self._file_path = file_path
+    def __init__(self, node):
+        self._node = node
 
     def __str__(self):
-        return 'remote file already exists: ' + self._file_path
+        return 'remote file already exists: ' + self._node.name
 
 
 async def file_producer(fin, hasher, write):
