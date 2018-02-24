@@ -158,6 +158,10 @@ class Drive(object):
         tmp_path = complete_path + '.__tmp__'
         if op.isfile(tmp_path):
             offset = op.getsize(tmp_path)
+            if offset > node.size:
+                msg = ('local file size of `{0}` is greater then remote ({1} > {2})'
+                       .format(complete_path, offset, node.size))
+                raise DownloadError(msg)
         elif op.exists(tmp_path):
             msg = '{0} exists but is not a file'.format(complete_path)
             raise DownloadError(msg)
