@@ -12,7 +12,7 @@ from tornado import ioloop as ti, locks as tl, gen as tg
 import yaml
 import wcpan.logger as wl
 
-from .drive import Drive
+from .drive import Drive, DownloadError
 from .util import stream_md5sum
 from .network import NetworkError
 
@@ -244,6 +244,10 @@ class DownloadQueue(object):
             try:
                 rv = await self._drive.download_file(node, local_path)
                 break
+            except DownloadError as e:
+                wl.EXCEPTION('wcpan.drive.google', e)
+                self._add_failed(node)
+                raise
             except NetworkError as e:
                 wl.EXCEPTION('wcpan.drive.google', e) << e.error
                 if e.status not in ('599',) and e.fatal:
