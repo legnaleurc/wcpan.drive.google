@@ -1,4 +1,5 @@
 import argparse
+import asyncio
 import contextlib as cl
 import functools as ft
 import hashlib
@@ -8,7 +9,6 @@ import os.path as op
 import pathlib as pl
 import sys
 
-from tornado import ioloop as ti, locks as tl, gen as tg
 import yaml
 import wcpan.logger as wl
 
@@ -71,8 +71,8 @@ class UploadQueue(object):
 
     def __init__(self, drive):
         self._drive = drive
-        self._lock = tl.Semaphore(value=8)
-        self._final = tl.Condition()
+        self._lock = asyncio.Semaphore(value=8)
+        self._final = asyncio.Condition()
         self._counter = 0
         self._total = 0
         self._failed = []
@@ -96,7 +96,8 @@ class UploadQueue(object):
         return total
 
     async def _wait_for_complete(self):
-        await self._final.wait()
+        async with self._final:
+            await self._final.wait()
 
     async def _internal_upload(self, local_path, parent_node):
         if op.isdir(local_path):
@@ -148,16 +149,17 @@ class UploadQueue(object):
         return node
 
     def _push(self, runnable):
-        loop = ti.IOLoop.current()
-        fn = ft.partial(self._do_upload_task, runnable)
-        loop.add_callback(fn)
+        loop = asyncio.get_event_loop()
+        t = self._do_upload_task(runnable)
+        loop.create_task(t)
 
     async def _do_upload_task(self, runnable):
         async with self._lock:
             await runnable()
             self._counter = self._counter + 1
             if self._counter == self._total:
-                self._final.notify()
+                async with self._final:
+                    self._final.notify()
 
     def _add_failed(self, local_path):
         self._failed.append(local_path)
@@ -179,8 +181,8 @@ class DownloadQueue(object):
 
     def __init__(self, drive):
         self._drive = drive
-        self._lock = tl.Semaphore(value=8)
-        self._final = tl.Condition()
+        self._lock = asyncio.Semaphore(value=8)
+        self._final = asyncio.Condition()
         self._counter = 0
         self._total = 0
         self._failed = []
@@ -188,7 +190,7 @@ class DownloadQueue(object):
     async def download(self, node_list, local_path):
         self._counter = 0
         total = (self._count_tasks(_) for _ in node_list)
-        total = await tg.multi(total)
+        total = await asyncio.gather(*total)
         self._total = sum(total)
         for node in node_list:
             if node.is_trashed:
@@ -205,11 +207,12 @@ class DownloadQueue(object):
         total = 1
         children = await self._drive.get_children(node)
         count = (self._count_tasks(_) for _ in children)
-        count = await tg.multi(count)
+        count = await asyncio.gather(*count)
         return total + sum(count)
 
     async def _wait_for_complete(self):
-        await self._final.wait()
+        async with self._final:
+            await self._final.wait()
 
     async def _internal_download(self, node, local_path):
         if node.is_folder:
@@ -260,16 +263,17 @@ class DownloadQueue(object):
         return rv
 
     def _push(self, runnable):
-        loop = ti.IOLoop.current()
-        fn = ft.partial(self._do_download_task, runnable)
-        loop.add_callback(fn)
+        loop = asyncio.get_event_loop()
+        t = self._do_download_task(runnable)
+        loop.create_task(t)
 
     async def _do_download_task(self, runnable):
         async with self._lock:
             await runnable()
             self._counter = self._counter + 1
             if self._counter == self._total:
-                self._final.notify()
+                async with self._final:
+                    self._final.notify()
 
     def _add_failed(self, local_path):
         self._failed.append(local_path)
@@ -383,8 +387,10 @@ async def action_find(drive, args):
     nodes = await drive.find_nodes_by_regex(args.pattern)
     if not args.include_trash:
         nodes = (_ for _ in nodes if _.is_available)
-    nodes = {_.id_: drive.get_path(_) for _ in nodes}
-    nodes = await tg.multi(nodes)
+    nodes = ((_.id_, drive.get_path(_)) for _ in nodes)
+    [ids, paths] = zip(*nodes)
+    paths = await asyncio.gather(*paths)
+    nodes = dict(zip(ids, paths))
 
     if args.id_only:
         for id_ in nodes:
@@ -411,7 +417,7 @@ async def action_tree(drive, args):
 
 async def action_download(drive, args):
     node_list = (get_node_by_id_or_path(drive, _) for _ in args.id_or_path)
-    node_list = await tg.multi(node_list)
+    node_list = await asyncio.gather(*node_list)
     queue_ = DownloadQueue(drive)
     await queue_.download(node_list, args.destination)
     return 0
@@ -426,7 +432,7 @@ async def action_upload(drive, args):
 
 async def action_remove(drive, args):
     rv = (trash_node(drive, _) for _ in args.id_or_path)
-    rv = await tg.multi(rv)
+    rv = await asyncio.gather(*rv)
     rv = filter(None, rv)
     rv = list(rv)
     if rv:
@@ -490,7 +496,7 @@ def print_as_yaml(data):
                    encoding=sys.stdout.encoding, default_flow_style=False)
 
 
-main_loop = ti.IOLoop.instance()
-exit_code = main_loop.run_sync(main)
+main_loop = asyncio.get_event_loop()
+exit_code = main_loop.run_until_complete(main())
 main_loop.close()
 sys.exit(exit_code)
