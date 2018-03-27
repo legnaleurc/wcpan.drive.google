@@ -170,11 +170,10 @@ class Drive(object):
         range_ = (offset, node.size)
 
         with open(tmp_path, 'ab') as fout:
-            writer = ft.partial(file_consumer, fout)
-
             api = self._client.files
-            rv = await api.download(file_id=node.id_, range_=range_,
-                                    consumer=writer)
+            rv = await api.download(file_id=node.id_, range_=range_)
+            async for chunk in rv.chunks():
+                fout.write(chunk)
 
         # rename it back if completed
         os.rename(tmp_path, complete_path)
@@ -444,7 +443,3 @@ async def file_producer(fin, hasher, write):
             break
         hasher.update(chunk)
         await write(chunk)
-
-
-def file_consumer(fout, chunk):
-    fout.write(chunk)
