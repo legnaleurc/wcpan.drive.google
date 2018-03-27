@@ -52,7 +52,7 @@ class Drive(object):
         # first time, get root node
         if check_point == '1':
             rv = await self._client.files.get('root', fields=FILE_FIELDS)
-            rv = rv.json_
+            rv = await rv.json()
             rv['name'] = None
             rv['parents'] = []
             node = Node.from_api(rv)
@@ -68,7 +68,7 @@ class Drive(object):
 
         while new_start_page_token is None:
             rv = await self._client.changes.list_(**changes_list_args)
-            rv = rv.json_
+            rv = await rv.json()
             next_page_token = rv.get('nextPageToken', None)
             new_start_page_token = rv.get('newStartPageToken', None)
             changes = rv['changes']
@@ -201,7 +201,7 @@ class Drive(object):
         api = self._client.files
         rv = await api.create_folder(folder_name=folder_name,
                                      parent_id=parent_node.id_)
-        rv = rv.json_
+        rv = await rv.json()
         node = await self.fetch_node_by_id(rv['id'])
 
         return node
@@ -245,7 +245,7 @@ class Drive(object):
             }
             rv, local_md5 = await self._inner_upload_file(**args)
 
-        rv = rv.json_
+        rv = await rv.json()
         node = await self.fetch_node_by_id(rv['id'])
 
         if node.md5 != local_md5:
@@ -268,7 +268,7 @@ class Drive(object):
                 if e.fatal:
                     raise
 
-        rv = rv.json_
+        rv = await rv.json()
         files = rv['files']
         if not files:
             return None
@@ -279,7 +279,7 @@ class Drive(object):
 
     async def fetch_node_by_id(self, node_id):
         rv = await self._client.files.get(node_id, fields=FILE_FIELDS)
-        rv = rv.json_
+        rv = await rv.json()
         node = Node.from_api(rv)
         self._db.insert_node(node)
         return node
