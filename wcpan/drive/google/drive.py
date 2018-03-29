@@ -436,10 +436,10 @@ class FileConflictedError(GoogleDriveError):
         return 'remote file already exists: ' + self._node.name
 
 
-async def file_producer(fin, hasher, write):
+async def file_producer(fin, hasher):
     while True:
         chunk = fin.read(CHUNK_SIZE)
         if not chunk:
             break
         hasher.update(chunk)
-        await write(chunk)
+        yield chunk
