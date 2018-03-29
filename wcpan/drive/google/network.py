@@ -2,6 +2,8 @@ import asyncio
 import json
 import math
 import random
+from typing import (Any, AsyncGenerator, AsyncIterator, Callable, Dict,
+                    Generator, List, Optional, Text, Tuple, Union)
 import urllib.parse as up
 
 import aiohttp
@@ -13,16 +15,19 @@ from .util import GoogleDriveError, Settings
 BACKOFF_FACTOR = 2
 BACKOFF_STATUSES = ('403', '500', '502', '503', '504')
 
+ContentProducer = Callable[[], AsyncGenerator[bytes, None]]
+ReadableContent = Union[bytes, ContentProducer]
+
 
 class Network(object):
 
-    def __init__(self, settings):
+    def __init__(self, settings: Settings) -> None:
         self._settings = settings
         self._backoff_level = 0
         self._session = None
         self._oauth = None
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> 'Network':
         oauth2_info = await self._settings.load_oauth2_info()
 
         self._session = aiohttp.ClientSession()
@@ -43,7 +48,7 @@ class Network(object):
 
         return self
 
-    async def __aexit__(self, exc_type, exc, tb):
+    async def __aexit__(self, exc_type, exc, tb) -> bool:
         if self._oauth:
             await self._oauth.__aexit__(exc_type, exc, tb)
             self._oauth = None
@@ -51,12 +56,18 @@ class Network(object):
             await self._session.__aexit__(exc_type, exc, tb)
             self._session = None
 
-    async def fetch(self, method, path, args=None, headers=None, body=None,
-                    raise_internal_error=False):
+    async def fetch(self,
+            method: Text,
+            url: Text,
+            args: Dict[Text, Any] = None,
+            headers: Dict[Text, Text] = None,
+            body: ReadableContent = None,
+            raise_internal_error: bool = False,
+        ) -> 'Response':
         while True:
             await self._maybe_backoff()
             try:
-                rv = await self._do_request(method, path, args, headers, body,
+                rv = await self._do_request(method, url, args, headers, body,
                                             raise_internal_error)
                 return rv
             except NetworkError as e:
@@ -66,8 +77,14 @@ class Network(object):
                     raise
                 WARNING('wcpan.drive.google') << str(e)
 
-    async def _do_request(self, method, path, args, headers, body,
-                          raise_internal_error):
+    async def _do_request(self,
+            method: Text,
+            url: Text,
+            args: Optional[Dict[Text, Any]],
+            headers: Optional[Dict[Text, Text]],
+            body: Optional[ReadableContent],
+            raise_internal_error: bool,
+        ) -> 'Response':
         kwargs = {
             'method': method,
             'url': url,
@@ -91,7 +108,9 @@ class Network(object):
 
         return response
 
-    def _prepare_headers(self, headers):
+    def _prepare_headers(self,
+            headers: Optional[Dict[Text, Text]],
+        ) -> Dict[Text, Text]:
         h = {
             'Authorization': 'Bearer {0}'.format(self._oauth.access_token),
         }
@@ -101,7 +120,7 @@ class Network(object):
              for k, v in h.items()}
         return h
 
-    async def _handle_status(self, response):
+    async def _handle_status(self, response: 'Response') -> 'Response':
         backoff = await backoff_needed(response)
         if backoff:
             self._increase_backoff_level()
@@ -124,13 +143,13 @@ class Network(object):
         json_ = await response.json()
         raise NetworkError(response, json_, not backoff)
 
-    def _increase_backoff_level(self):
+    def _increase_backoff_level(self) -> None:
         self._backoff_level = min(self._backoff_level + 2, 10)
 
-    def _decrease_backoff_level(self):
+    def _decrease_backoff_level(self) -> None:
         self._backoff_level = max(self._backoff_level - 1, 0)
 
-    async def _maybe_backoff(self):
+    async def _maybe_backoff(self) -> None:
         if self._backoff_level <= 0:
             return
         seed = random.random()
@@ -143,25 +162,28 @@ class Network(object):
 
 class Request(object):
 
-    def __init__(self, request):
+    def __init__(self, request: aiohttp.RequestInfo) -> None:
         self._request = request
 
     @property
-    def uri(self):
+    def uri(self) -> Text:
         return self._request.url
 
     @property
-    def method(self):
+    def method(self) -> Text:
         return self._request.method
 
     @property
-    def headers(self):
+    def headers(self) -> Dict[Text, Text]:
         return self._request.headers
 
 
 class Response(object):
 
-    def __init__(self, response, raise_internal_error):
+    def __init__(self,
+            response: aiohttp.ClientResponse,
+            raise_internal_error: bool,
+        ) -> None:
         self._response = response
         self._raise_internal_error = raise_internal_error
         self._request = Request(response.request_info)
@@ -170,14 +192,14 @@ class Response(object):
         self._json = None
 
     @property
-    def status(self):
+    def status(self) -> Text:
         return self._status
 
     @property
-    def reason(self):
+    def reason(self) -> Text:
         return self._response.reason
 
-    async def json(self):
+    async def json(self) -> Any:
         if self._parsed_json:
             return self._json
 
@@ -195,51 +217,57 @@ class Response(object):
 
         return self._json
 
-    def chunks(self):
+    def chunks(self) -> AsyncIterator[bytes]:
         return self._response.content.iter_any()
 
     @property
-    def request(self):
+    def request(self) -> Request:
         return self._request
 
     @property
-    def raise_internal_error(self):
+    def raise_internal_error(self) -> bool:
         return self._raise_internal_error
 
-    def get_header(self, key):
+    def get_header(self, key: Text) -> Text:
         h = self._response.headers.getall(key)
         return None if not h else h[0]
 
 
 class NetworkError(GoogleDriveError):
 
-    def __init__(self, response, json_, fatal):
+    def __init__(self, response: Response, json_: Any, fatal: bool) -> None:
         self._response = response
         self._message = '{0} {1} - {2}'.format(self.status,
                                                self._response.reason,
                                                json_)
         self._fatal = fatal
 
-    def __str__(self):
+    def __str__(self) -> Text:
         return self._message
 
     @property
-    def status(self):
+    def status(self) -> Text:
         return self._response.status
 
     @property
-    def fatal(self):
+    def fatal(self) -> bool:
         return self._fatal
 
     @property
-    def json(self):
+    def json(self) -> Any:
         return self._json
 
 
 class CommandLineGoogleDriveOAuth2(object):
 
-    def __init__(self, session, client_id, client_secret, redirect_uri,
-                 access_token=None, refresh_token=None):
+    def __init__(self,
+            session: aiohttp.ClientSession,
+            client_id: Text,
+            client_secret: Text,
+            redirect_uri: Text,
+            access_token: Text = None,
+            refresh_token: Text = None
+        ) -> None:
         self._session = session
         self._client_id = client_id
         self._client_secret = client_secret
@@ -247,24 +275,24 @@ class CommandLineGoogleDriveOAuth2(object):
         self._access_token = access_token
         self._refresh_token = refresh_token
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> 'CommandLineGoogleDriveOAuth2':
         if self._access_token is None:
             await self._fetch_access_token()
         return self
 
-    async def __aexit__(self, exc_type, exc, tb):
+    async def __aexit__(self, exc_type, exc, tb) -> bool:
         pass
 
     @property
-    def access_token(self):
+    def access_token(self) -> Text:
         assert self._access_token is not None
         return self._access_token
 
     @property
-    def refresh_token(self):
+    def refresh_token(self) -> Union[Text, None]:
         return self._refresh_token
 
-    async def refresh(self):
+    async def refresh(self) -> None:
         headers = {
             'Content-Type': 'application/x-www-form-urlencoded',
         }
@@ -281,18 +309,18 @@ class CommandLineGoogleDriveOAuth2(object):
             token = await response.json()
         self._save_token(token)
 
-    def _save_token(self, token):
+    def _save_token(self, token: Dict[Text, Any]) -> None:
         self._access_token = token['access_token']
         if 'refresh_token' in token:
             self._refresh_token = token['refresh_token']
 
-    async def _fetch_access_token(self):
+    async def _fetch_access_token(self) -> None:
         # get code on success
         code = await self._authorize_redirect()
         token = await self._get_authenticated_user(code=code)
         self._save_token(token)
 
-    async def _authorize_redirect(self):
+    async def _authorize_redirect(self) -> Text:
         kwargs = {
             'redirect_uri': self._redirect_uri,
             'client_id': self._client_id,
@@ -313,23 +341,23 @@ class CommandLineGoogleDriveOAuth2(object):
 
     # NOTE Google only
     @property
-    def oauth_authorize_url(self):
+    def oauth_authorize_url(self) -> Text:
         return 'https://accounts.google.com/o/oauth2/auth'
 
     # NOTE Google only
     @property
-    def oauth_access_token_url(self):
+    def oauth_access_token_url(self) -> Text:
         return 'https://accounts.google.com/o/oauth2/token'
 
     # NOTE Google only
     @property
-    def scopes(self):
+    def scopes(self) -> List[Text]:
         return [
             'https://www.googleapis.com/auth/drive',
         ]
 
     # NOTE Google only?
-    async def _get_authenticated_user(self, code):
+    async def _get_authenticated_user(self, code: Text) -> Dict[Text, Any]:
         headers = {'Content-Type': 'application/x-www-form-urlencoded'}
         body = up.urlencode({
             'redirect_uri': self._redirect_uri,
@@ -344,12 +372,12 @@ class CommandLineGoogleDriveOAuth2(object):
             return await response.json()
 
     # NOTE Use case depends
-    async def redirect(self, url):
+    async def redirect(self, url: Text) -> Text:
         print(url)
         return input().strip()
 
 
-async def backoff_needed(response):
+async def backoff_needed(response: Response) -> bool:
     if response.status not in BACKOFF_STATUSES:
         return False
 
@@ -368,7 +396,9 @@ async def backoff_needed(response):
     return True
 
 
-def normalize_query_string(qs):
+def normalize_query_string(
+        qs: Dict[Text, Any],
+    ) -> Generator[Tuple[Text, Text], None, None]:
     for key, value in qs.items():
         if isinstance(value, bool):
             value = 'true' if value else 'false'
