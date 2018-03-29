@@ -1,16 +1,12 @@
 import json
-from typing import Awaitable, Callable, Dict, List, Tuple
+from typing import List, Text, Tuple
 
-from .network import Network, Response
+from .network import Network, Response, ContentProducer
 from .util import FOLDER_MIME_TYPE, Settings
 
 
 API_ROOT = 'https://www.googleapis.com/drive/v3'
 EMPTY_STRING = ''
-
-Consumer = Callable[[bytes], None]
-Producer = Callable[[Callable[[bytes], Awaitable[None]]], Awaitable[None]]
-# producer consumer
 
 
 class Client(object):
@@ -20,7 +16,7 @@ class Client(object):
         self._network = None
         self._api = None
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> 'Client':
         self._api = {
             'changes': Changes(self),
             'files': Files(self),
@@ -31,7 +27,7 @@ class Client(object):
 
         return self
 
-    async def __aexit__(self, exc_type, exc, tb):
+    async def __aexit__(self, exc_type, exc, tb) -> bool:
         await self._network.__aexit__(exc_type, exc, tb)
 
     @property
@@ -42,7 +38,7 @@ class Client(object):
     def files(self) -> 'Files':
         return self._api['files']
 
-    async def _do_request(self, *args, **kwargs) -> Awaitable[Response]:
+    async def _do_request(self, *args, **kwargs) -> Response:
         return await self._network.fetch(*args, **kwargs)
 
 
@@ -52,8 +48,10 @@ class Changes(object):
         self._client = client
         self._root = API_ROOT + '/changes'
 
-    async def get_start_page_token(self, supports_team_drives: bool = None,
-                                   team_drive_id: str = None) -> Response:
+    async def get_start_page_token(self,
+            supports_team_drives: bool = None,
+            team_drive_id: Text = None,
+        ) -> Response:
         args = {}
         if supports_team_drives is not None:
             args['supportsTeamDrives'] = supports_team_drives
@@ -64,12 +62,18 @@ class Changes(object):
         rv = await self._client._do_request('GET', uri, args)
         return rv
 
-    async def list_(self, page_token: str, include_corpus_removals: bool = None,
-                    include_removed: bool = None,
-                    include_team_drive_items: bool = None,
-                    page_size: int = None, restrict_to_my_drive: bool = None,
-                    spaces: str = None, supports_team_drives: bool = None,
-                    team_drive_id: str = None, fields: str = None) -> Response:
+    async def list_(self,
+            page_token: Text,
+            include_corpus_removals: bool = None,
+            include_removed: bool = None,
+            include_team_drive_items: bool = None,
+            page_size: int = None,
+            restrict_to_my_drive: bool = None,
+            spaces: Text = None,
+            supports_team_drives: bool = None,
+            team_drive_id: Text = None,
+            fields: Text = None,
+        ) -> Response:
         args = {
             'pageToken': page_token,
         }
@@ -104,8 +108,11 @@ class Files(object):
         self._upload_uri = 'https://www.googleapis.com/upload/drive/v3/files'
 
     # only for metadata
-    async def get(self, file_id: str, supports_team_drives: bool = None,
-                  fields: str = None) -> Response:
+    async def get(self,
+            file_id: Text,
+            supports_team_drives: bool = None,
+            fields: Text = None,
+        ) -> Response:
         args = {}
         if supports_team_drives is not None:
             args['supportsTeamDrives'] = supports_team_drives
@@ -116,12 +123,19 @@ class Files(object):
         rv = await self._client._do_request('GET', uri, args)
         return rv
 
-    async def list_(self, corpora: str = None, corpus: str = None,
-                    include_team_drive_items: bool = None, order_by: str = None,
-                    page_size: int = None, page_token: str = None,
-                    q: str = None, spaces: str = None,
-                    supports_team_drives: bool = None,
-                    team_drive_id: str = None, fields: str = None) -> Response:
+    async def list_(self,
+            corpora: Text = None,
+            corpus: Text = None,
+            include_team_drive_items: bool = None,
+            order_by: Text = None,
+            page_size: int = None,
+            page_token: Text = None,
+            q: Text = None,
+            spaces: Text = None,
+            supports_team_drives: bool = None,
+            team_drive_id: Text = None,
+            fields: Text = None,
+        ) -> Response:
         args = {}
         if corpora is not None:
             args['corpora'] = corpora
@@ -149,9 +163,12 @@ class Files(object):
         rv = await self._client._do_request('GET', self._root, args)
         return rv
 
-    async def download(self, file_id: str, range_: Tuple[int, int],
-                       acknowledge_abuse: bool = None,
-                       supports_team_drives: bool = None) -> Response:
+    async def download(self,
+            file_id: Text,
+            range_: Tuple[int, int],
+            acknowledge_abuse: bool = None,
+            supports_team_drives: bool = None,
+        ) -> Response:
         args = {
             'alt': 'media',
         }
@@ -169,9 +186,12 @@ class Files(object):
                                             raise_internal_error=True)
         return rv
 
-    async def initiate_uploading(self, file_name: str, total_file_size: int,
-                                 parent_id: str = None,
-                                 mime_type: str = None) -> Response:
+    async def initiate_uploading(self,
+            file_name: Text,
+            total_file_size: int,
+            parent_id: Text = None,
+            mime_type: Text = None,
+        ) -> Response:
         if not file_name:
             raise ValueError('file name is empty')
         if total_file_size <= 0:
@@ -200,8 +220,13 @@ class Files(object):
                                             headers=headers, body=metadata)
         return rv
 
-    async def upload(self, uri: str, producer: Producer, offset: int,
-                     total_file_size: int, mime_type: str = None) -> Response:
+    async def upload(self,
+            uri: Text,
+            producer: ContentProducer,
+            offset: int,
+            total_file_size: int,
+            mime_type: Text = None,
+        ) -> Response:
         if not uri:
             raise ValueError('invalid session URI')
         if not producer:
@@ -226,8 +251,10 @@ class Files(object):
                                             raise_internal_error=True)
         return rv
 
-    async def get_upload_status(self, uri: str,
-                                total_file_size: int) -> Response:
+    async def get_upload_status(self,
+            uri: Text,
+            total_file_size: int,
+        ) -> Response:
         if not uri:
             raise ValueError('invalid session URI')
         if total_file_size <= 0:
@@ -240,8 +267,10 @@ class Files(object):
         rv = await self._client._do_request('PUT', uri, headers=headers)
         return rv
 
-    async def create_folder(self, folder_name: str,
-                            parent_id: str = None) -> Response:
+    async def create_folder(self,
+            folder_name: Text,
+            parent_id: Text = None,
+        ) -> Response:
         metadata = {
             'name': folder_name,
             'mimeType': FOLDER_MIME_TYPE,
@@ -259,9 +288,11 @@ class Files(object):
                                             body=metadata)
         return rv
 
-    async def create_empty_file(self, file_name: str,
-                                parent_id: str = None,
-                                mime_type: str = None) -> Response:
+    async def create_empty_file(self,
+            file_name: Text,
+            parent_id: Text = None,
+            mime_type: Text = None,
+        ) -> Response:
         if not file_name:
             raise ValueError('file name is empty')
 
@@ -285,10 +316,13 @@ class Files(object):
                                             body=metadata)
         return rv
 
-    async def update(self, file_id: str, name: str = None,
-                     add_parents: List[str] = None,
-                     remove_parents: List[str] = None,
-                     trashed: bool = None) -> Response:
+    async def update(self,
+            file_id: Text,
+            name: Text = None,
+            add_parents: List[Text] = None,
+            remove_parents: List[Text] = None,
+            trashed: bool = None,
+        ) -> Response:
         args = {}
         if add_parents is not None:
             args['addParents'] = ','.join(add_parents)
