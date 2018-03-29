@@ -23,9 +23,8 @@ class Client(object):
         self._network = None
         self._api = None
 
-    async def initialize(self) -> Awaitable[None]:
-        if self._oauth:
-            return
+    async def __aenter__(self):
+        assert self._oauth is None
 
         s = self._settings
         args = {
@@ -39,11 +38,17 @@ class Client(object):
         self._oauth = CommandLineOAuth2Handler(args)
         await self._oauth.authorize()
         self._network = Network()
+        await self._network.__aenter__()
         self._network.set_access_token(self._oauth.access_token)
         self._api = {
             'changes': Changes(self),
             'files': Files(self),
         }
+
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        await self._network.__aexit__(exc_type, exc, tb)
 
     @property
     def authorized(self) -> bool:

@@ -308,10 +308,9 @@ async def main(args=None):
         return 0
 
     path = op.expanduser('~/.cache/wcpan/drive/google')
-    drive = Drive(path)
-    await drive.initialize()
 
-    return await args.action(drive, args)
+    async with Drive(path) as drive:
+        return await args.action(drive, args)
 
 
 def parse_args(args):

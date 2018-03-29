@@ -27,17 +27,22 @@ class Drive(object):
 
     def __init__(self, settings_path=None):
         self._settings = Settings(settings_path)
+        self._client = None
+        self._db = None
+        self._pool = None
+
+    async def __aenter__(self):
         self._client = Client(self._settings)
         self._db = Database(self._settings)
         self._pool = ww.create_thread_pool()
+        await self._client.__aenter__()
+        await self._db.__aenter__()
+        return self
 
-    def close(self):
+    async def __aexit__(self, exc_type, exc, tb):
         self._pool.shutdown()
-        self._db.close()
-
-    async def initialize(self):
-        await self._client.initialize()
-        self._db.initialize()
+        await self._db.__aexit__(exc_type, exc, tb)
+        await self._client.__aexit__(exc_type, exc, tb)
 
     async def sync(self):
         assert self._client.authorized

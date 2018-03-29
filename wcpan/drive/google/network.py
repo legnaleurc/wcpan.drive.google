@@ -19,7 +19,15 @@ class Network(object):
     def __init__(self):
         self._access_token = None
         self._backoff_level = 0
+        self._session = None
+
+    async def __aenter__(self):
         self._session = aiohttp.ClientSession()
+        await self._session.__aenter__()
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        await self._session.__aexit__(exc_type, exc, tb)
 
     def set_access_token(self, token):
         self._access_token = token

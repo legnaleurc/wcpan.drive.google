@@ -63,11 +63,7 @@ class Database(object):
         self._settings = settings
         self._tls = threading.local()
 
-    def close(self):
-        db = self._get_thread_local_database()
-        db.close()
-
-    def initialize(self):
+    async def __aenter__(self):
         try:
             self._try_create()
         except sqlite3.OperationalError as e:
@@ -81,6 +77,12 @@ class Database(object):
 
         if CURRENT_SCHEMA_VERSION > version:
             self._migrate(version)
+
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        db = self._get_thread_local_database()
+        db.close()
 
     @property
     def root_id(self):
