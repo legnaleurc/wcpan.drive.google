@@ -177,9 +177,8 @@ class Files(object):
         rv = await self._client._do_request('GET', self._root, args)
         return rv
 
-    # download and send to streaming_callback
     async def download(self, file_id: str, range_: Tuple[int, int],
-                       consumer: Consumer, acknowledge_abuse: bool = None,
+                       acknowledge_abuse: bool = None,
                        supports_team_drives: bool = None) -> Response:
         args = {
             'alt': 'media',
@@ -195,7 +194,6 @@ class Files(object):
 
         uri = self._root + '/' + file_id
         rv = await self._client._do_request('GET', uri, args, headers=headers,
-                                            consumer=consumer,
                                             raise_internal_error=True)
         return rv
 
