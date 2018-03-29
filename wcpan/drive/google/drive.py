@@ -107,12 +107,12 @@ class Drive(object):
         return self._db.get_path_by_id(node_id)
 
     @off_main_thread
-    def get_child_by_id(self, node_id, name):
-        return self._db.get_child_by_id(node_id, name)
+    def get_child_by_name_from_parent_id(self, name, parent_id):
+        return self._db.get_child_by_name_from_parent_id(name, parent_id)
 
     @off_main_thread
-    def get_child(self, node, name):
-        return self._db.get_child_by_id(node.id_, name)
+    def get_child_by_name_from_parent(self, name, parent):
+        return self._db.get_child_by_name_from_parent_id(name, parent.id_)
 
     @off_main_thread
     def get_children(self, node):

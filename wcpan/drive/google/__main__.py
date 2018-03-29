@@ -27,7 +27,7 @@ async def verify_upload(drive, local_path, remote_node):
 async def verify_upload_directory(drive, local_path, remote_node):
     dir_name = local_path.name
 
-    child_node = drive.get_child_by_id(remote_node.id_, dir_name)
+    child_node = drive.get_child_by_name_from_parent(dir_name, remote_node)
     if not child_node:
         wl.ERROR('wcpan.drive.google') << 'not found : {0}'.format(local_path)
         return
@@ -46,7 +46,7 @@ async def verify_upload_file(drive, local_path, remote_node):
     remote_path = drive.get_path_by_id(remote_node.id_)
     remote_path = pl.Path(remote_path, file_name)
 
-    child_node = drive.get_child_by_id(remote_node.id_, file_name)
+    child_node = drive.get_child_by_name_from_parent(file_name, remote_node)
 
     if not child_node:
         wl.ERROR('wcpan.drive.google') << 'not found : {0}'.format(local_path)

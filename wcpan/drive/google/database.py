@@ -203,7 +203,7 @@ class Database(object):
         path = pl.Path(*parts)
         return str(path)
 
-    def get_child_by_id(self, node_id, name):
+    def get_child_by_name_from_parent_id(self, name, parent_id):
         db = self._get_thread_local_database()
         with ReadOnly(db) as query:
             query.execute('''
@@ -211,7 +211,7 @@ class Database(object):
                 FROM nodes
                     INNER JOIN parentage ON parentage.child=nodes.id
                 WHERE parentage.parent=? AND nodes.name=?
-            ;''', (node_id, name))
+            ;''', (parent_id, name))
             rv = query.fetchone()
 
         if not rv:
