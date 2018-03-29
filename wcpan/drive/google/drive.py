@@ -45,8 +45,6 @@ class Drive(object):
         await self._client.__aexit__(exc_type, exc, tb)
 
     async def sync(self):
-        assert self._client.authorized
-
         INFO('wcpan.drive.google') << 'sync begin'
 
         try:

@@ -7,7 +7,7 @@ import urllib.parse as up
 import aiohttp
 from wcpan.logger import DEBUG, EXCEPTION, INFO, WARNING
 
-from .util import GoogleDriveError
+from .util import GoogleDriveError, Settings
 
 
 BACKOFF_FACTOR = 2
@@ -16,21 +16,40 @@ BACKOFF_STATUSES = ('403', '500', '502', '503', '504')
 
 class Network(object):
 
-    def __init__(self):
-        self._access_token = None
+    def __init__(self, settings):
+        self._settings = settings
         self._backoff_level = 0
         self._session = None
+        self._oauth = None
 
     async def __aenter__(self):
+        oauth2_info = await self._settings.load_oauth2_info()
+
         self._session = aiohttp.ClientSession()
+        self._oauth = CommandLineGoogleDriveOAuth2(
+            self._session,
+            oauth2_info['client_id'],
+            oauth2_info['client_secret'],
+            oauth2_info['redirect_uri'],
+            oauth2_info['access_token'],
+            oauth2_info['refresh_token'],
+        )
+
         await self._session.__aenter__()
+        # FIXME handle exception here, or leak ClientSession
+        await self._oauth.__aenter__()
+        await self._settings.save_oauth2_info(self._oauth.access_token,
+                                              self._oauth.refresh_token)
+
         return self
 
     async def __aexit__(self, exc_type, exc, tb):
-        await self._session.__aexit__(exc_type, exc, tb)
-
-    def set_access_token(self, token):
-        self._access_token = token
+        if self._oauth:
+            await self._oauth.__aexit__(exc_type, exc, tb)
+            self._oauth = None
+        if self._session:
+            await self._session.__aexit__(exc_type, exc, tb)
+            self._session = None
 
     async def fetch(self, method, path, args=None, headers=None, body=None,
                     raise_internal_error=False):
@@ -49,12 +68,10 @@ class Network(object):
 
     async def _do_request(self, method, path, args, headers, body,
                           raise_internal_error):
-        headers = self._prepare_headers(headers)
-
         kwargs = {
             'method': method,
             'url': url,
-            'headers': headers,
+            'headers': self._prepare_headers(headers),
         }
         if args is not None:
             kwargs['params'] = list(normalize_query_string(args))
@@ -64,15 +81,19 @@ class Network(object):
             # do not raise timeout from client
             kwargs['timeout'] = 0
 
-        response = await self._session.request(**kwargs)
+        # retry if access token expired
+        while True:
+            response = await self._session.request(**kwargs)
+            response = Response(response, raise_internal_error)
+            if await self._handle_status(response):
+                break
+            kwargs['headers'] = self._prepare_headers(headers)
 
-        rv = Response(response, raise_internal_error)
-        rv = await self._handle_status(rv)
-        return rv
+        return response
 
     def _prepare_headers(self, headers):
         h = {
-            'Authorization': 'Bearer {0}'.format(self._access_token),
+            'Authorization': 'Bearer {0}'.format(self._oauth.access_token),
         }
         if headers is not None:
             h.update(headers)
@@ -89,7 +110,15 @@ class Network(object):
 
         # normal response
         if response.status[0] in ('1', '2', '3'):
-            return response
+            return True
+
+        # need to refresh access token
+        if response.status == '401':
+            INFO('wcpan.drive.google') << 'refresh token'
+            await self._oauth.refresh()
+            await self._settings.save_oauth2_info(self._oauth.access_token,
+                                                  self._oauth.refresh_token)
+            return False
 
         # otherwise it is an error
         json_ = await response.json()
@@ -205,6 +234,119 @@ class NetworkError(GoogleDriveError):
     @property
     def json(self):
         return self._json
+
+
+class CommandLineGoogleDriveOAuth2(object):
+
+    def __init__(self, session, client_id, client_secret, redirect_uri,
+                 access_token=None, refresh_token=None):
+        self._session = session
+        self._client_id = client_id
+        self._client_secret = client_secret
+        self._redirect_uri = redirect_uri
+        self._access_token = access_token
+        self._refresh_token = refresh_token
+
+    async def __aenter__(self):
+        if self._access_token is None:
+            await self._fetch_access_token()
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        pass
+
+    @property
+    def access_token(self):
+        assert self._access_token is not None
+        return self._access_token
+
+    @property
+    def refresh_token(self):
+        return self._refresh_token
+
+    async def refresh(self):
+        headers = {
+            'Content-Type': 'application/x-www-form-urlencoded',
+        }
+        body = up.urlencode({
+            'client_id': self._client_id,
+            'client_secret': self._client_secret,
+            'refresh_token': self._refresh_token,
+            'grant_type': 'refresh_token',
+        })
+
+        async with self._session.post(self.oauth_access_token_url,
+                                      headers=headers, data=body) as response:
+            response.raise_for_status()
+            token = await response.json()
+        self._save_token(token)
+
+    def _save_token(self, token):
+        self._access_token = token['access_token']
+        if 'refresh_token' in token:
+            self._refresh_token = token['refresh_token']
+
+    async def _fetch_access_token(self):
+        # get code on success
+        code = await self._authorize_redirect()
+        token = await self._get_authenticated_user(code=code)
+        self._save_token(token)
+
+    async def _authorize_redirect(self):
+        kwargs = {
+            'redirect_uri': self._redirect_uri,
+            'client_id': self._client_id,
+            'response_type': 'code',
+            'scope': ' '.join(self.scopes),
+        }
+
+        url = up.urlparse(self.oauth_authorize_url)
+        url = up.urlunparse((
+            url[0],
+            url[1],
+            url[2],
+            url[3],
+            up.urlencode(kwargs),
+            url[5],
+        ))
+        return await self.redirect(url)
+
+    # NOTE Google only
+    @property
+    def oauth_authorize_url(self):
+        return 'https://accounts.google.com/o/oauth2/auth'
+
+    # NOTE Google only
+    @property
+    def oauth_access_token_url(self):
+        return 'https://accounts.google.com/o/oauth2/token'
+
+    # NOTE Google only
+    @property
+    def scopes(self):
+        return [
+            'https://www.googleapis.com/auth/drive',
+        ]
+
+    # NOTE Google only?
+    async def _get_authenticated_user(self, code):
+        headers = {'Content-Type': 'application/x-www-form-urlencoded'}
+        body = up.urlencode({
+            'redirect_uri': self._redirect_uri,
+            'code': code,
+            'client_id': self._client_id,
+            'client_secret': self._client_secret,
+            'grant_type': 'authorization_code',
+        })
+        async with self._session.post(self.oauth_access_token_url,
+                                      headers=headers, data=body) as response:
+            response.raise_for_status()
+            return await response.json()
+
+    # NOTE Use case depends
+    async def redirect(self, url):
+        print(url)
+        return input().strip()
 
 
 async def backoff_needed(response):

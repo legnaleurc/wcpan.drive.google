@@ -7,7 +7,6 @@ import os.path as op
 import re
 import urllib.parse as up
 
-from tornado import auth as ta
 import yaml
 
 
@@ -69,104 +68,52 @@ class Settings(object):
     def __getitem__(self, key):
         return self._data[key]
 
-
-class CommandLineOAuth2Handler(ta.GoogleOAuth2Mixin):
-
-    def __init__(self, cfg):
-        super(CommandLineOAuth2Handler, self).__init__()
-
-        self._load(cfg)
-        self._code = ''
-        self._settings = {
-            'google_oauth': {
-                'key': self._client_id,
-                'secret': self._client_secret,
-            },
-        }
-
-    async def authorize(self):
-        if self._access_token is None:
-            await self._get_access_token()
-
-    async def refresh_access_token(self):
-        curl = self.get_auth_http_client()
-        body = up.urlencode({
-            'client_id': self._client_id,
-            'client_secret': self._client_secret,
-            'refresh_token': self._refresh_token,
-            'grant_type': 'refresh_token',
-        })
-        headers = {
-            'Content-Type': 'application/x-www-form-urlencoded',
-        }
-        response = await curl.fetch(self._OAUTH_ACCESS_TOKEN_URL,
-                                    method='POST', headers=headers, body=body)
-        if response.error:
-            raise ValueError('Google OAuth 2.0 error: {0}'.format(response))
-        token = json.loads(response.body)
-        self._save_token(token)
-
-    async def _get_access_token(self):
-        await self.authorize_redirect(redirect_uri=self._redirect_uri,
-                                      scope=['https://www.googleapis.com/auth/drive'],
-                                      client_id=self._client_id)
-        token = await self.get_authenticated_user(self._redirect_uri, code=self._code)
-        self._code = ''
-        self._save_token(token)
-
-    @property
-    def access_token(self):
-        assert self._access_token is not None
-        return self._access_token
-
-    def redirect(self, url):
-        print(url)
-        self._code = input()
-
-    @property
-    def settings(self):
-        return self._settings
-
-    def _load(self, cfg):
-        if 'client_config_file' not in cfg:
+    async def load_oauth2_info(self):
+        if 'client_config_file' not in self._data:
             raise ValueError('`client_config_file` not found')
 
         # load API key
-        with open(cfg['client_config_file'], 'r') as fin:
+        with open(self._data['client_config_file'], 'r') as fin:
             client = json.load(fin)
         if 'installed' not in client:
             raise ValueError('credential should be an installed application')
         client = client['installed']
-        self._redirect_uri = client['redirect_uris'][0]
-        self._client_id = client['client_id']
-        self._client_secret = client['client_secret']
+        redirect_uri = client['redirect_uris'][0]
+        client_id = client['client_id']
+        client_secret = client['client_secret']
 
         # load refresh token
-        self._token_path = cfg['save_credentials_file']
-        if not op.isfile(self._token_path):
-            self._access_token = None
-            self._refresh_token = None
-            return
-        with open(self._token_path, 'r') as fin:
-            token = yaml.safe_load(fin)
-        if token.get('version', 0) != 1:
-            raise ValueError('wrong token file')
-        self._access_token = token['access_token']
-        self._refresh_token = token['refresh_token']
+        token_path = self._data['save_credentials_file']
+        if not op.isfile(token_path):
+            access_token = None
+            refresh_token = None
+        else:
+            with open(token_path, 'r') as fin:
+                token = yaml.safe_load(fin)
+            if token.get('version', 0) != 1:
+                raise ValueError('wrong token file')
+            access_token = token['access_token']
+            refresh_token = token['refresh_token']
 
-    def _save_token(self, token):
-        self._access_token = token['access_token']
-        if 'refresh_token' in token:
-            self._refresh_token = token['refresh_token']
+        return {
+            'client_id': client_id,
+            'client_secret': client_secret,
+            'redirect_uri': redirect_uri,
+            'access_token': access_token,
+            'refresh_token': refresh_token,
+        }
+
+    async def save_oauth2_info(self, access_token, refresh_token):
         token = {
             'version': 1,
-            'access_token': self._access_token,
-            'refresh_token': self._refresh_token,
+            'access_token': access_token,
+            'refresh_token': refresh_token,
         }
+        token_path = self._data['save_credentials_file']
 
         # save refresh token
         rv = yaml.dump(token, default_flow_style=False)
-        with open(self._token_path, 'w') as fout:
+        with open(token_path, 'w') as fout:
             fout.write(rv)
 
 

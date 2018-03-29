@@ -1,10 +1,8 @@
 import json
 from typing import Awaitable, Callable, Dict, List, Tuple
 
-from wcpan.logger import EXCEPTION, DEBUG
-
-from .network import Network, Response, NetworkError
-from .util import CommandLineOAuth2Handler, FOLDER_MIME_TYPE, Settings
+from .network import Network, Response
+from .util import FOLDER_MIME_TYPE, Settings
 
 
 API_ROOT = 'https://www.googleapis.com/drive/v3'
@@ -19,40 +17,22 @@ class Client(object):
 
     def __init__(self, settings: Settings) -> None:
         self._settings = settings
-        self._oauth = None
         self._network = None
         self._api = None
 
     async def __aenter__(self):
-        assert self._oauth is None
-
-        s = self._settings
-        args = {
-            'client_config_backend': s['client_config_backend'],
-            'client_config_file': s['client_config_file'],
-            'get_refresh_token': s['get_refresh_token'],
-            'save_credentials': s['save_credentials'],
-            'save_credentials_backend': s['save_credentials_backend'],
-            'save_credentials_file': s['save_credentials_file'],
-        }
-        self._oauth = CommandLineOAuth2Handler(args)
-        await self._oauth.authorize()
-        self._network = Network()
-        await self._network.__aenter__()
-        self._network.set_access_token(self._oauth.access_token)
         self._api = {
             'changes': Changes(self),
             'files': Files(self),
         }
+        s = self._settings
+        self._network = Network(s)
+        await self._network.__aenter__()
 
         return self
 
     async def __aexit__(self, exc_type, exc, tb):
         await self._network.__aexit__(exc_type, exc, tb)
-
-    @property
-    def authorized(self) -> bool:
-        return self._oauth is not None
 
     @property
     def changes(self) -> 'Changes':
@@ -62,21 +42,8 @@ class Client(object):
     def files(self) -> 'Files':
         return self._api['files']
 
-    async def _refresh_token(self) -> Awaitable[None]:
-        DEBUG('wcpan.drive.google') << 'refresh token'
-        await self._oauth.refresh_access_token()
-        self._network.set_access_token(self._oauth.access_token)
-
     async def _do_request(self, *args, **kwargs) -> Awaitable[Response]:
-        while True:
-            try:
-                rv = await self._network.fetch(*args, **kwargs)
-                break
-            except NetworkError as e:
-                if e.status != '401':
-                    raise
-            await self._refresh_token()
-        return rv
+        return await self._network.fetch(*args, **kwargs)
 
 
 class Changes(object):
