@@ -4,6 +4,7 @@ import pathlib as pl
 import re
 import sqlite3
 import threading
+from typing import Any, Dict, List, Text, Union
 
 from . import util as u
 
@@ -48,22 +49,22 @@ CURRENT_SCHEMA_VERSION = 1
 
 class DatabaseError(u.GoogleDriveError):
 
-    def __init__(self, message):
+    def __init__(self, message: Text) -> None:
         super(DatabaseError, self).__init__()
 
         self._message = message
 
-    def __str__(self):
+    def __str__(self) -> Text:
         return self._message
 
 
 class Database(object):
 
-    def __init__(self, settings):
+    def __init__(self, settings: u.Settings) -> None:
         self._settings = settings
         self._tls = threading.local()
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> 'Database':
         try:
             self._try_create()
         except sqlite3.OperationalError as e:
@@ -80,19 +81,19 @@ class Database(object):
 
         return self
 
-    async def __aexit__(self, exc_type, exc, tb):
+    async def __aexit__(self, exc_type, exc, tb) -> bool:
         db = self._get_thread_local_database()
         db.close()
 
     @property
-    def root_id(self):
+    def root_id(self) -> Text:
         return self.get_metadata('root_id')
 
     @property
-    def root_node(self):
+    def root_node(self) -> 'Node':
         return self.get_node_by_id(self.root_id)
 
-    def get_metadata(self, key):
+    def get_metadata(self, key: Text) -> Text:
         db = self._get_thread_local_database()
         with ReadOnly(db) as query:
             query.execute('SELECT value FROM metadata WHERE key = ?;', (key,))
@@ -101,7 +102,7 @@ class Database(object):
             raise KeyError
         return rv['value']
 
-    def set_metadata(self, key, value):
+    def set_metadata(self, key: Text, value: Text) -> None:
         db = self._get_thread_local_database()
         with ReadWrite(db) as query:
             query.execute('''
@@ -109,7 +110,7 @@ class Database(object):
                 VALUES (?, ?)
             ;''', (key, value))
 
-    def get_node_by_id(self, node_id):
+    def get_node_by_id(self, node_id: Text) -> Union['Node', None]:
         db = self._get_thread_local_database()
         with ReadOnly(db) as query:
             query.execute('''
@@ -144,7 +145,7 @@ class Database(object):
             node = Node.from_database(node)
             return node
 
-    def get_node_by_path(self, path):
+    def get_node_by_path(self, path: Text) -> Union['Node', None]:
         path = pl.Path(path)
         parts = list(path.parts)
         if parts[0] != '/':
@@ -169,7 +170,7 @@ class Database(object):
             node = self.get_node_by_id(node_id)
         return node
 
-    def get_path_by_id(self, node_id):
+    def get_path_by_id(self, node_id: Text) -> Union[Text, None]:
         parts = []
         db = self._get_thread_local_database()
         with ReadOnly(db) as query:
@@ -203,7 +204,10 @@ class Database(object):
         path = pl.Path(*parts)
         return str(path)
 
-    def get_child_by_name_from_parent_id(self, name, parent_id):
+    def get_child_by_name_from_parent_id(self,
+            name: Text,
+            parent_id: Text
+        ) -> Union['Node', None]:
         db = self._get_thread_local_database()
         with ReadOnly(db) as query:
             query.execute('''
@@ -220,7 +224,7 @@ class Database(object):
         node = self.get_node_by_id(rv['id'])
         return node
 
-    def get_children_by_id(self, node_id):
+    def get_children_by_id(self, node_id: Text) -> List['Node']:
         db = self._get_thread_local_database()
         with ReadOnly(db) as query:
             query.execute('''
@@ -233,7 +237,10 @@ class Database(object):
         children = [self.get_node_by_id(_['child']) for _ in rv]
         return children
 
-    def apply_changes(self, changes, check_point):
+    def apply_changes(self,
+            changes: Dict[Text, Any],
+            check_point: Text,
+        ) -> None:
         db = self._get_thread_local_database()
         with ReadWrite(db) as query:
             for change in changes:
@@ -246,7 +253,7 @@ class Database(object):
 
             self.set_metadata('check_point', check_point)
 
-    def insert_node(self, node):
+    def insert_node(self, node: 'Node') -> None:
         db = self._get_thread_local_database()
         with ReadWrite(db) as query:
             inner_insert_node(query, node)
@@ -254,7 +261,7 @@ class Database(object):
         if not node.name:
             self.set_metadata('root_id', node.id_)
 
-    def find_nodes_by_regex(self, pattern):
+    def find_nodes_by_regex(self, pattern: Text) -> List['Node']:
         db = self._get_thread_local_database()
         with ReadOnly(db) as query:
             query.execute('SELECT id FROM nodes WHERE name REGEXP ?;', (pattern,))
@@ -262,7 +269,7 @@ class Database(object):
         rv = [self.get_node_by_id(_['id']) for _ in rv]
         return rv
 
-    def find_duplicate_nodes(self):
+    def find_duplicate_nodes(self) -> List['Node']:
         db = self._get_thread_local_database()
         with ReadOnly(db) as query:
             query.execute('''
@@ -289,7 +296,7 @@ class Database(object):
             rv = [self.get_node_by_id(_) for _ in node_id_list]
         return rv
 
-    def find_orphan_nodes(self):
+    def find_orphan_nodes(self) -> List['Node']:
         db = self._get_thread_local_database()
         with ReadOnly(db) as query:
             query.execute('''
@@ -302,113 +309,113 @@ class Database(object):
             rv = [self.get_node_by_id(_['id']) for _ in rv]
         return rv
 
-    def _get_thread_local_database(self):
+    def _get_thread_local_database(self) -> sqlite3.Connection:
         db = getattr(self._tls, 'db', None)
         if db is None:
             db = self._open()
             setattr(self._tls, 'db', db)
         return db
 
-    def _open(self):
+    def _open(self) -> sqlite3.Connection:
         path = self._settings['nodes_database_file']
         db = sqlite3.connect(path, detect_types=sqlite3.PARSE_DECLTYPES)
         db.row_factory = sqlite3.Row
         db.create_function('REGEXP', 2, sqlite3_regexp)
         return db
 
-    def _try_create(self):
+    def _try_create(self) -> None:
         db = self._get_thread_local_database()
         with ReadWrite(db) as query:
             query.executescript(SQL_CREATE_TABLES)
 
-    def _migrate(self, version):
+    def _migrate(self, version) -> None:
         raise NotImplementedError()
 
 
 class Node(object):
 
     @staticmethod
-    def from_api(data):
+    def from_api(data: Dict[Text, Any]) -> 'Node':
         node = Node(data)
         node._initialize_from_api()
         return node
 
     @staticmethod
-    def from_database(data):
+    def from_database(data: Dict[Text, Any]) -> 'Node':
         node = Node(data)
         node._initialize_from_database()
         return node
 
-    def __init__(self, data):
+    def __init__(self, data: Dict[Text, Any]) -> None:
         self._data = data
 
     @property
-    def is_root(self):
+    def is_root(self) -> bool:
         return self._name is None
 
     @property
-    def is_file(self):
+    def is_file(self) -> bool:
         return not self._is_folder
 
     @property
-    def is_folder(self):
+    def is_folder(self) -> bool:
         return self._is_folder
 
     @property
-    def id_(self):
+    def id_(self) -> Text:
         return self._id
 
     @property
-    def name(self):
+    def name(self) -> Text:
         return self._name
 
     @property
-    def status(self):
+    def status(self) -> Text:
         return self._status
 
     @property
-    def is_available(self):
+    def is_available(self) -> bool:
         return self._status == 'AVAILABLE'
 
     @property
-    def is_trashed(self):
+    def is_trashed(self) -> bool:
         return self._status == 'TRASH'
 
     @is_trashed.setter
-    def is_trashed(self, trashed):
+    def is_trashed(self, trashed: bool) -> None:
         if trashed:
             self._status = 'TRASH'
         else:
             self._status = 'AVAILABLE'
 
     @property
-    def created(self):
+    def created(self) -> dt.datetime:
         return self._created
 
     @property
-    def modified(self):
+    def modified(self) -> dt.datetime:
         return self._modified
 
     @property
-    def parents(self):
+    def parents(self) -> List[Text]:
         return self._parents
 
     @property
-    def parent_id(self):
+    def parent_id(self) -> Text:
         if len(self._parents) != 1:
             msg = 'expected only one parent, got: {0}'.format(self._parents)
             raise DatabaseError(msg)
         return self._parents[0]
 
     @property
-    def md5(self):
+    def md5(self) -> Text:
         return self._md5
 
     @property
-    def size(self):
+    def size(self) -> int:
         return self._size
 
-    def _initialize_from_api(self):
+    def _initialize_from_api(self) -> None:
         data = self._data
         self._id = data['id']
         self._name = data['name']
@@ -421,7 +428,7 @@ class Node(object):
         self._md5 = data.get('md5Checksum', None)
         self._size = data.get('size', None)
 
-    def _initialize_from_database(self):
+    def _initialize_from_database(self) -> None:
         data = self._data
         self._id = data['id']
         self._name = data['name']
@@ -437,27 +444,27 @@ class Node(object):
 
 class ReadOnly(object):
 
-    def __init__(self, db):
+    def __init__(self, db: sqlite3.Connection) -> None:
         self._db = db
 
-    def __enter__(self):
+    def __enter__(self) -> sqlite3.Cursor:
         self._cursor = self._db.cursor()
         return self._cursor
 
-    def __exit__(self, exc_type, exc_value, exc_tb):
+    def __exit__(self, exc_type, exc_value, exc_tb) -> bool:
         self._cursor.close()
 
 
 class ReadWrite(object):
 
-    def __init__(self, db):
+    def __init__(self, db: sqlite3.Connection) -> None:
         self._db = db
 
-    def __enter__(self):
+    def __enter__(self) -> sqlite3.Cursor:
         self._cursor = self._db.cursor()
         return self._cursor
 
-    def __exit__(self, exc_type, exc_value, exc_tb):
+    def __exit__(self, exc_type, exc_value, exc_tb) -> bool:
         if exc_type is None:
             self._db.commit()
         else:
@@ -465,7 +472,7 @@ class ReadWrite(object):
         self._cursor.close()
 
 
-def inner_insert_node(query, node):
+def inner_insert_node(query: sqlite3.Cursor, node: Node) -> None:
     # add this node
     query.execute('''
         INSERT OR REPLACE INTO nodes
@@ -499,7 +506,7 @@ def inner_insert_node(query, node):
             ;''', (parent, node.id_))
 
 
-def inner_delete_node_by_id(query, node_id):
+def inner_delete_node_by_id(query: sqlite3.Cursor, node_id: Text) -> None:
     # disconnect parents
     query.execute('''
         DELETE FROM parentage
@@ -519,14 +526,14 @@ def inner_delete_node_by_id(query, node_id):
     ;''', (node_id,))
 
 
-def sqlite3_regexp(pattern, cell):
+def sqlite3_regexp(pattern: Text, cell: Union[Text, None]) -> bool:
     if cell is None:
         # root node
         return False
     return re.search(pattern, cell, re.I) is not None
 
 
-def initialize():
+def initialize() -> None:
     sqlite3.register_adapter(dt.datetime, lambda _: _.isoformat())
     def to_dt(raw_datetime):
         s = raw_datetime.decode('utf-8')
