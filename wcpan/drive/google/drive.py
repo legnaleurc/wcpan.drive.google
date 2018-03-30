@@ -1,7 +1,6 @@
 import functools as ft
 import hashlib as hl
 import mimetypes
-import multiprocessing as mp
 import os
 import os.path as op
 import re
