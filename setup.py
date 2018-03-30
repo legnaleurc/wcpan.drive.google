@@ -13,6 +13,7 @@ setup(
         ],
         install_requires=[
             'PyYAML',
+            'aiohttp >= 3',
             'wcpan.logger',
             'wcpan.worker >= 1.3',
         ],
