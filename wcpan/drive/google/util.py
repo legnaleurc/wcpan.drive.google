@@ -4,6 +4,7 @@ import json
 import os
 import os.path as op
 import re
+from typing import Any, BinaryIO, Dict, Text
 
 import yaml
 
@@ -19,16 +20,16 @@ class GoogleDriveError(Exception):
 
 class InvalidDateTimeError(GoogleDriveError):
 
-    def __init__(self, iso):
+    def __init__(self, iso: Text) -> None:
         self._iso = iso
 
-    def __str__(self):
+    def __str__(self) -> Text:
         return 'invalid ISO date: ' + self._iso
 
 
 class Settings(object):
 
-    def __init__(self, path):
+    def __init__(self, path: Text) -> None:
         self._path = path
         self._data = {
             'version': 1,
@@ -38,7 +39,7 @@ class Settings(object):
         }
         self._initialize()
 
-    def _initialize(self):
+    def _initialize(self) -> None:
         if not self._path:
             return
 
@@ -63,10 +64,10 @@ class Settings(object):
                 rv = yaml.load(fin)
             self._data.update(rv)
 
-    def __getitem__(self, key):
+    def __getitem__(self, key: Text) -> Any:
         return self._data[key]
 
-    async def load_oauth2_info(self):
+    async def load_oauth2_info(self) -> Dict[Text, Any]:
         if 'client_config_file' not in self._data:
             raise ValueError('`client_config_file` not found')
 
@@ -101,7 +102,10 @@ class Settings(object):
             'refresh_token': refresh_token,
         }
 
-    async def save_oauth2_info(self, access_token, refresh_token):
+    async def save_oauth2_info(self,
+            access_token: Text,
+            refresh_token: Text,
+        ) -> None:
         token = {
             'version': 1,
             'access_token': access_token,
@@ -115,7 +119,7 @@ class Settings(object):
             fout.write(rv)
 
 
-def from_isoformat(iso_datetime):
+def from_isoformat(iso_datetime: Text) -> dt.datetime:
     rv = re.match(ISO_PATTERN, iso_datetime)
     if not rv:
         raise InvalidDateTimeError(iso_datetime)
@@ -147,7 +151,7 @@ def from_isoformat(iso_datetime):
     return rv
 
 
-def stream_md5sum(input_stream):
+def stream_md5sum(input_stream: BinaryIO) -> Text:
     hasher = hashlib.md5()
     while True:
         chunk = input_stream.read(CHUNK_SIZE)
