@@ -1,11 +1,9 @@
 import datetime as dt
-import functools as ft
 import hashlib
 import json
 import os
 import os.path as op
 import re
-import urllib.parse as up
 
 import yaml
 
