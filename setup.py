@@ -13,7 +13,6 @@ setup(
         ],
         install_requires=[
             'PyYAML',
-            'tornado',
             'wcpan.logger',
             'wcpan.worker >= 1.3',
         ],
