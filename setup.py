@@ -6,7 +6,7 @@ setup(
         version='1.0.0',
         author='Wei-Cheng Pan',
         author_email='legnaleurc@gmail.com',
-        description='Google Drive API with Tornado.',
+        description='Asynchronous Google Drive API.',
         url='https://github.com/legnaleurc/wcpan.drive.google',
         packages=[
             'wcpan.drive.google',
