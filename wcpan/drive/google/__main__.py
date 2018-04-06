@@ -386,10 +386,9 @@ async def action_find(drive, args):
     nodes = await drive.find_nodes_by_regex(args.pattern)
     if not args.include_trash:
         nodes = (_ for _ in nodes if _.is_available)
-    nodes = ((_.id_, drive.get_path(_)) for _ in nodes)
-    [ids, paths] = zip(*nodes)
-    paths = await asyncio.gather(*paths)
-    nodes = dict(zip(ids, paths))
+    nodes = (wait_for_value(_.id_, drive.get_path(_)) for _ in nodes)
+    nodes = await asyncio.gather(*nodes)
+    nodes = dict(nodes)
 
     if args.id_only:
         for id_ in nodes:
@@ -483,6 +482,10 @@ async def trash_node(drive, id_or_path):
     if not rv:
         return id_or_path
     return None
+
+
+async def wait_for_value(k, v):
+    return k, await v
 
 
 def print_node(name, level):
