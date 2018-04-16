@@ -535,10 +535,12 @@ def sqlite3_regexp(pattern: Text, cell: Union[Text, None]) -> bool:
 
 def initialize() -> None:
     sqlite3.register_adapter(dt.datetime, lambda _: _.isoformat())
-    def to_dt(raw_datetime):
-        s = raw_datetime.decode('utf-8')
-        return u.from_isoformat(s)
     sqlite3.register_converter('DATETIME', to_dt)
+
+
+def to_dt(raw_datetime):
+    s = raw_datetime.decode('utf-8')
+    return u.from_isoformat(s)
 
 
 initialize()
