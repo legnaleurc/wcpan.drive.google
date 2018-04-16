@@ -15,7 +15,7 @@ setup(
             'PyYAML',
             'aiohttp >= 3',
             'wcpan.logger',
-            'wcpan.worker >= 1.3',
+            'wcpan.worker >= 2',
         ],
         classifiers=[
             'Programming Language :: Python :: 3 :: Only',
