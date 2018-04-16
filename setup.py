@@ -3,7 +3,7 @@ from setuptools import setup
 
 setup(
         name='wcpan.drive.google',
-        version='2.0.0.dev1',
+        version='2.0.0',
         author='Wei-Cheng Pan',
         author_email='legnaleurc@gmail.com',
         description='Asynchronous Google Drive API.',
