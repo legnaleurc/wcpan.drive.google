@@ -9,12 +9,15 @@ from typing import Any, Dict, List, Text, Union
 from . import util as u
 
 
-SQL_CREATE_TABLES = '''
+SQL_CREATE_TABLES = [
+    '''
     CREATE TABLE metadata (
         key VARCHAR(64) NOT NULL,
         value VARCHAR(4096),
         PRIMARY KEY (key)
     );
+    ''',
+    '''
     CREATE TABLE nodes (
         id VARCHAR(32) NOT NULL,
         name VARCHAR(4096),
@@ -25,6 +28,8 @@ SQL_CREATE_TABLES = '''
         UNIQUE (id),
         CHECK (status IN ('AVAILABLE', 'TRASH'))
     );
+    ''',
+    '''
     CREATE TABLE files (
         id VARCHAR(32) NOT NULL,
         md5 VARCHAR(32),
@@ -33,16 +38,19 @@ SQL_CREATE_TABLES = '''
         UNIQUE (id),
         FOREIGN KEY (id) REFERENCES nodes (id)
     );
+    ''',
+    '''
     CREATE TABLE parentage (
         parent VARCHAR(32) NOT NULL,
         child VARCHAR(32) NOT NULL,
         PRIMARY KEY (parent, child),
         FOREIGN KEY (child) REFERENCES nodes (id)
     );
-    CREATE INDEX ix_parentage_child ON parentage(child);
-    CREATE INDEX ix_nodes_names ON nodes(name);
-    PRAGMA user_version = 1;
-'''
+    ''',
+    'CREATE INDEX ix_parentage_child ON parentage(child);',
+    'CREATE INDEX ix_nodes_names ON nodes(name);',
+    'PRAGMA user_version = 1;',
+]
 
 CURRENT_SCHEMA_VERSION = 1
 
@@ -326,7 +334,8 @@ class Database(object):
     def _try_create(self) -> None:
         db = self._get_thread_local_database()
         with ReadWrite(db) as query:
-            query.executescript(SQL_CREATE_TABLES)
+            for sql in SQL_CREATE_TABLES:
+                query.execute(sql)
 
     def _migrate(self, version) -> None:
         raise NotImplementedError()
