@@ -116,7 +116,7 @@ class UploadQueue(object):
                                                        exist_ok=True)
                 break
             except NetworkError as e:
-                wl.EXCEPTION('wcpan.drive.google', e) << e.error
+                wl.EXCEPTION('wcpan.drive.google', e)
                 if e.status not in ('599',) and e.fatal:
                     self._add_failed(local_path)
                     raise
@@ -139,7 +139,7 @@ class UploadQueue(object):
                                                      exist_ok=True)
                 break
             except NetworkError as e:
-                wl.EXCEPTION('wcpan.drive.google', e) << e.error
+                wl.EXCEPTION('wcpan.drive.google', e)
                 if e.status not in ('599',) and e.fatal:
                     self._add_failed(local_path)
                     raise
@@ -228,7 +228,7 @@ class DownloadQueue(object):
         try:
             os.makedirs(full_path, exist_ok=True)
         except Exception as e:
-            wl.EXCEPTION('wcpan.drive.google', e) << e.error
+            wl.EXCEPTION('wcpan.drive.google', e)
             self._add_failed(node)
 
         await self._log_end(full_path)
@@ -252,7 +252,7 @@ class DownloadQueue(object):
                 self._add_failed(node)
                 raise
             except NetworkError as e:
-                wl.EXCEPTION('wcpan.drive.google', e) << e.error
+                wl.EXCEPTION('wcpan.drive.google', e)
                 if e.status not in ('599',) and e.fatal:
                     self._add_failed(node)
                     raise

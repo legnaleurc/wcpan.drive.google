@@ -164,6 +164,11 @@ class Drive(object):
             msg = '{0} exists but is not a file'.format(complete_path)
             raise DownloadError(msg)
 
+        # if the file is empty, no need to download
+        if node.size <= 0:
+            open(complete_path, 'w').close()
+            return True
+
         # resume download
         tmp_path = complete_path + '.__tmp__'
         if op.isfile(tmp_path):
