@@ -12,16 +12,16 @@ from . import util as u
 SQL_CREATE_TABLES = [
     '''
     CREATE TABLE metadata (
-        key VARCHAR(64) NOT NULL,
-        value VARCHAR(4096),
+        key TEXT NOT NULL,
+        value TEXT,
         PRIMARY KEY (key)
     );
     ''',
     '''
     CREATE TABLE nodes (
-        id VARCHAR(32) NOT NULL,
-        name VARCHAR(4096),
-        status VARCHAR(16),
+        id TEXT NOT NULL,
+        name TEXT,
+        status TEXT,
         created DATETIME,
         modified DATETIME,
         PRIMARY KEY (id),
@@ -31,9 +31,9 @@ SQL_CREATE_TABLES = [
     ''',
     '''
     CREATE TABLE files (
-        id VARCHAR(32) NOT NULL,
-        md5 VARCHAR(32),
-        size BIGINT,
+        id TEXT NOT NULL,
+        md5 TEXT,
+        size INTEGER,
         PRIMARY KEY (id),
         UNIQUE (id),
         FOREIGN KEY (id) REFERENCES nodes (id)
@@ -41,8 +41,8 @@ SQL_CREATE_TABLES = [
     ''',
     '''
     CREATE TABLE parentage (
-        parent VARCHAR(32) NOT NULL,
-        child VARCHAR(32) NOT NULL,
+        parent TEXT NOT NULL,
+        child TEXT NOT NULL,
         PRIMARY KEY (parent, child),
         FOREIGN KEY (child) REFERENCES nodes (id)
     );
