@@ -72,7 +72,7 @@ class Database(object):
         self._settings = settings
         self._tls = threading.local()
 
-    async def __aenter__(self) -> 'Database':
+    def __enter__(self) -> 'Database':
         try:
             self._try_create()
         except sqlite3.OperationalError as e:
@@ -89,7 +89,7 @@ class Database(object):
 
         return self
 
-    async def __aexit__(self, exc_type, exc, tb) -> bool:
+    def __exit__(self, exc_type, exc, tb) -> bool:
         db = self._get_thread_local_database()
         db.close()
 

@@ -37,12 +37,12 @@ class Drive(object):
         self._db = Database(self._settings)
         self._pool = ww.create_thread_pool()
         await self._client.__aenter__()
-        await self._db.__aenter__()
+        self._db.__enter__()
         return self
 
     async def __aexit__(self, exc_type, exc, tb) -> bool:
         self._pool.shutdown()
-        await self._db.__aexit__(exc_type, exc, tb)
+        self._db.__exit__(exc_type, exc, tb)
         await self._client.__aexit__(exc_type, exc, tb)
 
     async def sync(self) -> bool:
