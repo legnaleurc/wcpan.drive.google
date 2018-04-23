@@ -322,10 +322,27 @@ class Drive(object):
         return await self.trash_node_by_id(node.id_)
 
     async def rename_node_by_path(self, src_path: Text, dst_path: Text) -> Node:
-        src_node = await self.get_node_by_path(src_path)
-        if not src_node:
+        node = await self.get_node_by_path(src_path)
+        if not node:
             raise FileNotFoundError(src_path)
+        return await self.rename_node(node, dst_path)
 
+    async def rename_node_by_id(self, node_id: Text, dst_path: Text) -> Node:
+        # TODO raise exception for invalid nodes
+        node = await self.get_node_by_id(node_id)
+        return await self.rename_node(node, dst_path)
+
+    async def rename_node(self, src_node: Node, dst_path: Text) -> Node:
+        '''
+        Rename or move `src_node` to `dst_path`. `dst_path` can be a file name
+        or an absolute path.
+        If `dst_path` is a file and already exists, `FileConflictedError` will
+        be raised.
+        If `dst_path` is a folder, `src_node` will be moved to there without
+        renaming.
+        If `dst_path` does not exist yet, `src_node` will be moved and rename to
+        `dst_path`.
+        '''
         dst_node = await self.get_node_by_path(dst_path)
         # do not support overwriting
         if dst_node and dst_node.is_file:
