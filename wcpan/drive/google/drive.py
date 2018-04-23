@@ -4,8 +4,8 @@ import mimetypes
 import os
 import os.path as op
 import re
-from typing import (Any, AsyncGenerator, Awaitable, Dict, List, Text, Tuple,
-                    Union)
+from typing import (Any, AsyncGenerator, Awaitable, Dict, List, Optional, Text,
+                    Tuple, Union)
 
 from wcpan.logger import INFO, WARNING, DEBUG
 import wcpan.worker as ww
@@ -343,24 +343,32 @@ class Drive(object):
         If `dst_path` does not exist yet, `src_node` will be moved and rename to
         `dst_path`.
         '''
-        dst_node = await self.get_node_by_path(dst_path)
-        # do not support overwriting
-        if dst_node and dst_node.is_file:
-            raise FileConflictedError(dst_path)
-
-        if dst_node:
-            # just move to this folder
-            await self._inner_rename_node(src_node, None, dst_node.id_)
-        else:
-            # move to the parent folder
-            dst_folder, dst_name = op.split(dst_path)
-            parent_id = await self.get_node_by_path(dst_folder)
-            await self._inner_rename_node(src_node, dst_name, parent_id)
+        parent, dst_name = self._get_dst_info(dst_path)
+        await self._inner_rename_node(src_node, parent, dst_name)
 
         # update local cache
         node = await self.fetch_node_by_id(src_node.id_)
         self._db.insert_node(node)
         return node
+
+    async def _get_dst_info(self, dst_path: Text) -> Tuple[Node, Text]:
+        if not op.isabs(dst_path):
+            if op.basename(dst_path) != dst_path:
+                raise ValueError('invalid path: {0}'.format(dst_path))
+            # rename only
+            return None, dst_path
+        else:
+            dst_node = await self.get_node_by_path(dst_path)
+            if not dst_node:
+                # move to the parent folder
+                dst_folder, dst_name = op.split(dst_path)
+                parent = await self.get_node_by_path(dst_folder)
+                return parent, dst_name
+            if dst_node.is_file:
+                # do not overwrite existing file
+                raise FileConflictedError(dst_path)
+            # just move to this folder
+            return dst_node, None
 
     async def _inner_upload_file(self,
             file_path: Text,
@@ -453,15 +461,24 @@ class Drive(object):
 
     async def _inner_rename_node(self,
             node: Node,
-            name: Text,
-            new_parent_id: Text,
+            new_parent: Optional[Node],
+            name: Optional[Text],
         ) -> Response:
-        api = self._client.files
+        if not new_parent and not name:
+            raise ValueError('invalid arguments')
+
+        kwargs = {
+            'file_id': node.id_,
+        }
+        if name:
+            kwargs['name'] = name
+        if new_parent and new_parent.id_ != node.parent_id:
+            kwargs['add_parents'] = [new_parent.id_]
+            kwargs['remove_parents'] = [node.parent_id]
+
         while True:
             try:
-                rv = await api.update(file_id=node.id_, name=name,
-                                      add_parents=[new_parent_id],
-                                      remove_parents=[node.parent_id])
+                rv = await self._client.files.update(**kwargs)
                 break
             except NetworkError as e:
                 if e.fatal:
