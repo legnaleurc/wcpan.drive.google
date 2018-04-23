@@ -352,7 +352,7 @@ def parse_args(args):
 
     mv_parser = commands.add_parser('rename', aliases=['mv'])
     mv_parser.set_defaults(action=action_rename)
-    mv_parser.add_argument('source_path', type=str)
+    mv_parser.add_argument('source_id_or_path', type=str)
     mv_parser.add_argument('destination_path', type=str)
 
     sout = io.StringIO()
@@ -439,8 +439,8 @@ async def action_remove(drive, args):
 
 
 async def action_rename(drive, args):
-    node = await drive.rename_node_by_path(args.source_path,
-                                           args.destination_path)
+    node = await get_node_by_id_or_path(drive, args.source_id_or_path)
+    node = await drive.rename_node(node, args.destination_path)
     path = await drive.get_path(node)
     return path
 
