@@ -343,7 +343,7 @@ class Drive(object):
         If `dst_path` does not exist yet, `src_node` will be moved and rename to
         `dst_path`.
         '''
-        parent, dst_name = self._get_dst_info(dst_path)
+        parent, dst_name = await self._get_dst_info(dst_path)
         await self._inner_rename_node(src_node, parent, dst_name)
 
         # update local cache
