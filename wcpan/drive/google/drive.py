@@ -60,7 +60,7 @@ class Drive(object):
             rv['name'] = None
             rv['parents'] = []
             node = Node.from_api(rv)
-            self._db.insert_node(node)
+            await self._insert_node(node)
 
         new_start_page_token = None
         changes_list_args = {
@@ -299,14 +299,14 @@ class Drive(object):
             return None
 
         node = Node.from_api(files[0])
-        self._db.insert_node(node)
+        await self._insert_node(node)
         return node
 
     async def fetch_node_by_id(self, node_id: Text) -> Node:
         rv = await self._client.files.get(node_id, fields=FILE_FIELDS)
         rv = await rv.json()
         node = Node.from_api(rv)
-        self._db.insert_node(node)
+        await self._insert_node(node)
         return node
 
     async def trash_node_by_id(self, node_id: Text) -> Node:
@@ -342,7 +342,7 @@ class Drive(object):
 
         # update local cache
         node = await self.fetch_node_by_id(src_node.id_)
-        self._db.insert_node(node)
+        await self._insert_node(node)
         return node
 
     async def _inner_upload_file(self,
@@ -450,6 +450,10 @@ class Drive(object):
                 if e.fatal:
                     raise
         return rv
+
+    @off_main_thread
+    def _insert_node(self, node: Node) -> Awaitable[None]:
+        self._db.insert_node(node)
 
 
 class DownloadError(GoogleDriveError):
