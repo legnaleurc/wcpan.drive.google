@@ -313,9 +313,20 @@ class Drive(object):
         if node_id == self.root_node.id_:
             return
         await self._client.files.update(node_id, trashed=True)
+
         node = await self.get_node_by_id(node_id)
         node.is_trashed = True
-        self._db.insert_node(node)
+        await self._insert_node(node)
+
+        # update all children
+        async for parent, folders, files in drive_walk(self, node):
+            for folder in folders:
+                folder.is_trashed = True
+                await self._insert_node(folder)
+            for f in files:
+                f.is_trashed = True
+                await self._insert_node(f)
+
         return node
 
     async def trash_node(self, node: Node) -> Node:
@@ -493,3 +504,17 @@ async def file_producer(
             break
         hasher.update(chunk)
         yield chunk
+
+
+async def drive_walk(drive, node):
+    if not node.is_folder:
+        return
+    q = [node]
+    while q:
+        node = q[0]
+        del q[0]
+        children = await drive.get_children(node)
+        folders = list(filter(lambda _: _.is_folder, children))
+        files = list(filter(lambda _: _.is_file, children))
+        yield node, folders, files
+        q.extend(folders)
