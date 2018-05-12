@@ -296,9 +296,6 @@ async def main(args=None):
         args = sys.argv
 
     wl.setup((
-        'tornado.access',
-        'tornado.application',
-        'tornado.general',
         'wcpan.drive.google',
     ))
 
