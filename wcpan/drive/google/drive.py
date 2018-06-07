@@ -13,7 +13,8 @@ import wcpan.worker as ww
 from .api import Client
 from .database import Database, Node
 from .network import ContentProducer, NetworkError, Response
-from .util import Settings, GoogleDriveError, stream_md5sum, FOLDER_MIME_TYPE, CHUNK_SIZE
+from .util import (Settings, GoogleDriveError, stream_md5sum, FOLDER_MIME_TYPE,
+                   CHUNK_SIZE)
 
 
 FILE_FIELDS = 'id,name,mimeType,trashed,parents,createdTime,modifiedTime,md5Checksum,size'
@@ -60,7 +61,7 @@ class Drive(object):
             rv['name'] = None
             rv['parents'] = []
             node = Node.from_api(rv)
-            self._db.insert_node(node)
+            await self._insert_node(node)
 
         new_start_page_token = None
         changes_list_args = {
@@ -299,23 +300,34 @@ class Drive(object):
             return None
 
         node = Node.from_api(files[0])
-        self._db.insert_node(node)
+        await self._insert_node(node)
         return node
 
     async def fetch_node_by_id(self, node_id: Text) -> Node:
         rv = await self._client.files.get(node_id, fields=FILE_FIELDS)
         rv = await rv.json()
         node = Node.from_api(rv)
-        self._db.insert_node(node)
+        await self._insert_node(node)
         return node
 
     async def trash_node_by_id(self, node_id: Text) -> Node:
         if node_id == self.root_node.id_:
             return
         await self._client.files.update(node_id, trashed=True)
+
         node = await self.get_node_by_id(node_id)
         node.is_trashed = True
-        self._db.insert_node(node)
+        await self._insert_node(node)
+
+        # update all children
+        async for parent, folders, files in drive_walk(self, node):
+            for folder in folders:
+                folder.is_trashed = True
+                await self._insert_node(folder)
+            for f in files:
+                f.is_trashed = True
+                await self._insert_node(f)
+
         return node
 
     async def trash_node(self, node: Node) -> Node:
@@ -348,7 +360,7 @@ class Drive(object):
 
         # update local cache
         node = await self.fetch_node_by_id(src_node.id_)
-        self._db.insert_node(node)
+        await self._insert_node(node)
         return node
 
     async def _get_dst_info(self, dst_path: Text) -> Tuple[Node, Text]:
@@ -485,6 +497,10 @@ class Drive(object):
                     raise
         return rv
 
+    @off_main_thread
+    def _insert_node(self, node: Node) -> Awaitable[None]:
+        self._db.insert_node(node)
+
 
 class DownloadError(GoogleDriveError):
 
@@ -523,3 +539,17 @@ async def file_producer(
             break
         hasher.update(chunk)
         yield chunk
+
+
+async def drive_walk(drive, node):
+    if not node.is_folder:
+        return
+    q = [node]
+    while q:
+        node = q[0]
+        del q[0]
+        children = await drive.get_children(node)
+        folders = list(filter(lambda _: _.is_folder, children))
+        files = list(filter(lambda _: _.is_file, children))
+        yield node, folders, files
+        q.extend(folders)
