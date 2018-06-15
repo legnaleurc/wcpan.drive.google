@@ -7,6 +7,7 @@ from typing import (Any, AsyncGenerator, AsyncIterator, Callable, Dict,
 import urllib.parse as up
 
 import aiohttp
+import async_exit_stack as aes
 from wcpan.logger import DEBUG, EXCEPTION, INFO, WARNING
 
 from .util import GoogleDriveError, Settings
@@ -26,6 +27,7 @@ class Network(object):
         self._backoff_level = 0
         self._session = None
         self._oauth = None
+        self._raii = None
 
     async def __aenter__(self) -> 'Network':
         oauth2_info = await self._settings.load_oauth2_info()
@@ -40,21 +42,21 @@ class Network(object):
             oauth2_info['refresh_token'],
         )
 
-        await self._session.__aenter__()
-        # FIXME handle exception here, or leak ClientSession
-        await self._oauth.__aenter__()
-        await self._settings.save_oauth2_info(self._oauth.access_token,
-                                              self._oauth.refresh_token)
+        async with aes.AsyncExitStack() as stack:
+            await stack.enter_async_context(self._session)
+            await stack.enter_async_context(self._oauth)
+            await self._settings.save_oauth2_info(self._oauth.access_token,
+                                                  self._oauth.refresh_token)
+            self._raii = stack.pop_all()
 
         return self
 
     async def __aexit__(self, exc_type, exc, tb) -> bool:
-        if self._oauth:
-            await self._oauth.__aexit__(exc_type, exc, tb)
-            self._oauth = None
-        if self._session:
-            await self._session.__aexit__(exc_type, exc, tb)
-            self._session = None
+        await self._raii.aclose()
+        self._backoff_level = 0
+        self._session = None
+        self._oauth = None
+        self._raii = None
 
     async def fetch(self,
             method: Text,
