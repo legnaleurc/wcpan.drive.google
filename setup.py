@@ -14,8 +14,8 @@ setup(
         install_requires=[
             'PyYAML',
             'aiohttp >= 3',
+            'async_exit_stack',
             'wcpan.logger',
-            'wcpan.worker >= 2',
         ],
         classifiers=[
             'Programming Language :: Python :: 3 :: Only',

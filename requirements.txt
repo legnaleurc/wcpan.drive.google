@@ -2,4 +2,3 @@ PyYAML
 aiohttp >= 3
 async_exit_stack
 wcpan.logger
-wcpan.worker >= 1.3
