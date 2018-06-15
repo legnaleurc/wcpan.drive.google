@@ -1,13 +1,26 @@
+import asyncio
 import contextlib as cl
 import datetime as dt
+import functools as ft
 import os
 import sqlite3
 import tempfile
 import unittest as ut
 import unittest.mock as utm
 
-import wcpan.drive.google.database as wdgdb
+from async_exit_stack import AsyncExitStack
+import wcpan.drive.google.cache as wdgc
 from wcpan.drive.google.util import FOLDER_MIME_TYPE
+
+
+def sync(fn):
+    @ft.wraps(fn)
+    def wrapper(*args, **kwargs):
+        loop = asyncio.get_event_loop()
+        f = fn(*args, **kwargs)
+        rv = loop.run_until_complete(f)
+        return rv
+    return wrapper
 
 
 class TestTransaction(ut.TestCase):
@@ -22,7 +35,7 @@ class TestTransaction(ut.TestCase):
 
     def testRead(self):
         with connect(self._file) as db:
-            with wdgdb.ReadOnly(db) as query:
+            with wdgc.ReadOnly(db) as query:
                 inner_select(query)
                 rv = query.fetchone()
 
@@ -31,7 +44,7 @@ class TestTransaction(ut.TestCase):
 
     def testWrite(self):
         with connect(self._file) as db:
-            with wdgdb.ReadWrite(db) as query:
+            with wdgc.ReadWrite(db) as query:
                 inner_insert(query)
 
             with cl.closing(db.cursor()) as query:
@@ -46,18 +59,18 @@ class TestTransaction(ut.TestCase):
     def testParallelReading(self):
         with connect(self._file) as db1, \
              connect(self._file) as db2:
-            with wdgdb.ReadOnly(db1) as q1:
+            with wdgc.ReadOnly(db1) as q1:
                 inner_select(q1)
-                with wdgdb.ReadOnly(db2) as q2:
+                with wdgc.ReadOnly(db2) as q2:
                     inner_select(q2)
 
     def testWriteWhileReading(self):
         with connect(self._file) as rdb, \
              connect(self._file) as wdb:
             with self.assertRaises(sqlite3.OperationalError) as e:
-                with wdgdb.ReadOnly(rdb) as rq:
+                with wdgc.ReadOnly(rdb) as rq:
                     inner_select(rq)
-                    with wdgdb.ReadWrite(wdb) as wq:
+                    with wdgc.ReadWrite(wdb) as wq:
                         inner_insert(wq)
 
         self.assertEqual(str(e.exception), 'database is locked')
@@ -65,9 +78,9 @@ class TestTransaction(ut.TestCase):
     def testReadWhileWriting(self):
         with connect(self._file) as rdb, \
              connect(self._file) as wdb:
-            with wdgdb.ReadWrite(wdb) as wq:
+            with wdgc.ReadWrite(wdb) as wq:
                 inner_insert(wq)
-                with wdgdb.ReadOnly(rdb) as rq:
+                with wdgc.ReadOnly(rdb) as rq:
                     rq.execute('''
                         SELECT id FROM student WHERE name=?;
                     ''', ('bob',))
@@ -79,9 +92,9 @@ class TestTransaction(ut.TestCase):
         with connect(self._file) as db1, \
              connect(self._file) as db2:
             with self.assertRaises(sqlite3.OperationalError) as e:
-                with wdgdb.ReadWrite(db1) as q1:
+                with wdgc.ReadWrite(db1) as q1:
                     inner_insert(q1)
-                    with wdgdb.ReadWrite(db2) as q2:
+                    with wdgc.ReadWrite(db2) as q2:
                         inner_insert(q2)
 
         self.assertEqual(str(e.exception), 'database is locked')
@@ -89,29 +102,34 @@ class TestTransaction(ut.TestCase):
 
 class TestNodeCache(ut.TestCase):
 
-    def setUp(self):
+    @sync
+    async def setUp(self):
         _, self._file = tempfile.mkstemp()
         s = get_fake_settings(self._file)
 
-        with cl.ExitStack() as ctx:
-            self._db = ctx.enter_context(wdgdb.Database(s))
-            self.addCleanup(ctx.pop_all().close)
+        async with AsyncExitStack() as ctx:
+            self._db = await ctx.enter_async_context(wdgc.Cache(s))
+            self._stack = ctx.pop_all()
 
-        initial_nodes(self._db)
+        await initial_nodes(self._db)
 
-    def tearDown(self):
+    @sync
+    async def tearDown(self):
+        await self._stack.aclose()
         os.unlink(self._file)
 
-    def testRoot(self):
-        node = self._db.root_node
+    @sync
+    async def testRoot(self):
+        node = await self._db.get_root_node()
         self.assertEqual(node.id_, '__ROOT_ID__')
 
-    def testSearch(self):
-        nodes = self._db.find_nodes_by_regex(r'^f1$')
+    @sync
+    async def testSearch(self):
+        nodes = await self._db.find_nodes_by_regex(r'^f1$')
         self.assertEqual(len(nodes), 1)
         node = nodes[0]
         self.assertEqual(node.id_, '__F1_ID__')
-        path = self._db.get_path_by_id(node.id_)
+        path = await self._db.get_path_by_id(node.id_)
         self.assertEqual(path, '/d1/f1')
 
 
@@ -119,6 +137,7 @@ def connect(path):
     db = sqlite3.connect(path, timeout=0.1)
     db.row_factory = sqlite3.Row
     return db
+
 
 def prepare(db):
     with cl.closing(db.cursor()) as query:
@@ -163,7 +182,7 @@ def get_utc_now():
     return dt.datetime.now(dt.timezone.utc)
 
 
-def initial_nodes(db):
+async def initial_nodes(db):
     data = {
         'id': '__ROOT_ID__',
         'name': '',
@@ -172,8 +191,8 @@ def initial_nodes(db):
         'createdTime': get_utc_now().isoformat(),
         'modifiedTime': get_utc_now().isoformat(),
     }
-    node = wdgdb.Node.from_api(data)
-    db.insert_node(node)
+    node = wdgc.Node.from_api(data)
+    await db.insert_node(node)
 
     data = [
         {
@@ -229,4 +248,4 @@ def initial_nodes(db):
             }
         },
     ]
-    db.apply_changes(data, '2')
+    await db.apply_changes(data, '2')
