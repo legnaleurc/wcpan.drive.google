@@ -7,6 +7,7 @@ import re
 from typing import (Any, AsyncGenerator, Awaitable, Dict, List, Optional, Text,
                     Tuple, Union)
 
+import async_exit_stack as aes
 from wcpan.logger import INFO, WARNING, DEBUG
 
 from .api import Client
@@ -27,17 +28,21 @@ class Drive(object):
         self._settings = Settings(settings_path)
         self._client = None
         self._db = None
+        self._raii = None
 
     async def __aenter__(self) -> 'Drive':
-        self._client = Client(self._settings)
-        self._db = Cache(self._settings)
-        await self._client.__aenter__()
-        await self._db.__aenter__()
+        async with aes.AsyncExitStack() as stack:
+            self._client = await stack.enter_async_context(
+                Client(self._settings))
+            self._db = await stack.enter_async_context(Cache(self._settings))
+            self._raii = stack.pop_all()
         return self
 
     async def __aexit__(self, exc_type, exc, tb) -> bool:
-        await self._db.__aexit__(exc_type, exc, tb)
-        await self._client.__aexit__(exc_type, exc, tb)
+        await self._raii.aclose()
+        self._client = None
+        self._db = None
+        self._raii = None
 
     async def sync(self) -> bool:
         INFO('wcpan.drive.google') << 'sync begin'
