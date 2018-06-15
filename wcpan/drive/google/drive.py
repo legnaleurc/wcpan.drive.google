@@ -8,10 +8,9 @@ from typing import (Any, AsyncGenerator, Awaitable, Dict, List, Optional, Text,
                     Tuple, Union)
 
 from wcpan.logger import INFO, WARNING, DEBUG
-import wcpan.worker as ww
 
 from .api import Client
-from .database import Database, Node
+from .cache import Cache, Node
 from .network import ContentProducer, NetworkError, Response
 from .util import (Settings, GoogleDriveError, stream_md5sum, FOLDER_MIME_TYPE,
                    CHUNK_SIZE)
@@ -22,35 +21,29 @@ CHANGE_FIELDS = 'nextPageToken,newStartPageToken,changes(fileId,removed,file({0}
 EMPTY_MD5SUM = 'd41d8cd98f00b204e9800998ecf8427e'
 
 
-off_main_thread = ww.off_main_thread_method('_pool')
-
-
 class Drive(object):
 
     def __init__(self, settings_path: Text = None) -> None:
         self._settings = Settings(settings_path)
         self._client = None
         self._db = None
-        self._pool = None
 
     async def __aenter__(self) -> 'Drive':
         self._client = Client(self._settings)
-        self._db = Database(self._settings)
-        self._pool = ww.create_thread_pool()
+        self._db = Cache(self._settings)
         await self._client.__aenter__()
-        self._db.__enter__()
+        await self._db.__aenter__()
         return self
 
     async def __aexit__(self, exc_type, exc, tb) -> bool:
-        self._pool.shutdown()
-        self._db.__exit__(exc_type, exc, tb)
+        await self._db.__aexit__(exc_type, exc, tb)
         await self._client.__aexit__(exc_type, exc, tb)
 
     async def sync(self) -> bool:
         INFO('wcpan.drive.google') << 'sync begin'
 
         try:
-            check_point = self._db.get_metadata('check_point')
+            check_point = await self._db.get_metadata('check_point')
         except KeyError:
             check_point = '1'
 
@@ -61,7 +54,7 @@ class Drive(object):
             rv['name'] = None
             rv['parents'] = []
             node = Node.from_api(rv)
-            await self._insert_node(node)
+            await self._db.insert_node(node)
 
         new_start_page_token = None
         changes_list_args = {
@@ -80,7 +73,7 @@ class Drive(object):
 
             check_point = next_page_token if next_page_token is not None else new_start_page_token
 
-            await self._apply_changes(changes, check_point)
+            await self._db.apply_changes(changes, check_point)
             changes_list_args['page_token'] = check_point
 
             INFO('wcpan.drive.google') << 'applied' << len(changes) << 'changes'
@@ -88,59 +81,47 @@ class Drive(object):
         INFO('wcpan.drive.google') << 'sync end'
         return True
 
-    @property
-    def root_node(self) -> Node:
-        return self._db.root_node
+    async def get_root_node(self) -> Node:
+        return await self._db.get_root_node()
 
-    @off_main_thread
-    def get_node_by_id(self, node_id: Text) -> Awaitable[Node]:
-        return self._db.get_node_by_id(node_id)
+    async def get_node_by_id(self, node_id: Text) -> Awaitable[Node]:
+        return await self._db.get_node_by_id(node_id)
 
-    @off_main_thread
-    def get_node_by_path(self, path: Text) -> Awaitable[Node]:
-        return self._db.get_node_by_path(path)
+    async def get_node_by_path(self, path: Text) -> Awaitable[Node]:
+        return await self._db.get_node_by_path(path)
 
-    @off_main_thread
-    def get_path(self, node: Node) -> Awaitable[Text]:
-        return self._db.get_path_by_id(node.id_)
+    async def get_path(self, node: Node) -> Awaitable[Text]:
+        return await self._db.get_path_by_id(node.id_)
 
-    @off_main_thread
-    def get_path_by_id(self, node_id: Text) -> Awaitable[Text]:
-        return self._db.get_path_by_id(node_id)
+    async def get_path_by_id(self, node_id: Text) -> Awaitable[Text]:
+        return await self._db.get_path_by_id(node_id)
 
-    @off_main_thread
-    def get_child_by_name_from_parent_id(self,
+    async def get_child_by_name_from_parent_id(self,
             name: Text,
             parent_id: Text,
         ) -> Awaitable[Node]:
-        return self._db.get_child_by_name_from_parent_id(name, parent_id)
+        return await self._db.get_child_by_name_from_parent_id(name, parent_id)
 
-    @off_main_thread
-    def get_child_by_name_from_parent(self,
+    async def get_child_by_name_from_parent(self,
             name: Text,
             parent: Node,
         ) -> Awaitable[Node]:
-        return self._db.get_child_by_name_from_parent_id(name, parent.id_)
+        return await self._db.get_child_by_name_from_parent_id(name, parent.id_)
 
-    @off_main_thread
-    def get_children(self, node: Node) -> Awaitable[List[Node]]:
-        return self._db.get_children_by_id(node.id_)
+    async def get_children(self, node: Node) -> Awaitable[List[Node]]:
+        return await self._db.get_children_by_id(node.id_)
 
-    @off_main_thread
-    def get_children_by_id(self, node_id: Text) -> Awaitable[List[Node]]:
-        return self._db.get_children_by_id(node_id)
+    async def get_children_by_id(self, node_id: Text) -> Awaitable[List[Node]]:
+        return await self._db.get_children_by_id(node_id)
 
-    @off_main_thread
-    def find_nodes_by_regex(self, pattern: Text) -> Awaitable[List[Node]]:
-        return self._db.find_nodes_by_regex(pattern)
+    async def find_nodes_by_regex(self, pattern: Text) -> Awaitable[List[Node]]:
+        return await self._db.find_nodes_by_regex(pattern)
 
-    @off_main_thread
-    def find_duplicate_nodes(self) -> Awaitable[List[Node]]:
-        return self._db.find_duplicate_nodes()
+    async def find_duplicate_nodes(self) -> Awaitable[List[Node]]:
+        return await self._db.find_duplicate_nodes()
 
-    @off_main_thread
-    def find_orphan_nodes(self) -> Awaitable[List[Node]]:
-        return self._db.find_orphan_nodes()
+    async def find_orphan_nodes(self) -> Awaitable[List[Node]]:
+        return await self._db.find_orphan_nodes()
 
     async def download_file_by_id(self, node_id: Text, path: Text) -> bool:
         node = await self.get_node_by_id(node_id)
@@ -300,14 +281,14 @@ class Drive(object):
             return None
 
         node = Node.from_api(files[0])
-        await self._insert_node(node)
+        await self._db.insert_node(node)
         return node
 
     async def fetch_node_by_id(self, node_id: Text) -> Node:
         rv = await self._client.files.get(node_id, fields=FILE_FIELDS)
         rv = await rv.json()
         node = Node.from_api(rv)
-        await self._insert_node(node)
+        await self._db.insert_node(node)
         return node
 
     async def trash_node_by_id(self, node_id: Text) -> Node:
@@ -317,16 +298,16 @@ class Drive(object):
 
         node = await self.get_node_by_id(node_id)
         node.is_trashed = True
-        await self._insert_node(node)
+        await self._db.insert_node(node)
 
         # update all children
         async for parent, folders, files in drive_walk(self, node):
             for folder in folders:
                 folder.is_trashed = True
-                await self._insert_node(folder)
+                await self._db.insert_node(folder)
             for f in files:
                 f.is_trashed = True
-                await self._insert_node(f)
+                await self._db.insert_node(f)
 
         return node
 
@@ -360,7 +341,7 @@ class Drive(object):
 
         # update local cache
         node = await self.fetch_node_by_id(src_node.id_)
-        await self._insert_node(node)
+        await self._db.insert_node(node)
         return node
 
     async def _get_dst_info(self, dst_path: Text) -> Tuple[Node, Text]:
@@ -464,13 +445,6 @@ class Drive(object):
 
         return False, rv
 
-    @off_main_thread
-    def _apply_changes(self,
-            changes: List[Dict[Text, Any]],
-            check_point: Text,
-        ) -> Awaitable[None]:
-        self._db.apply_changes(changes, check_point)
-
     async def _inner_rename_node(self,
             node: Node,
             new_parent: Optional[Node],
@@ -496,10 +470,6 @@ class Drive(object):
                 if e.fatal:
                     raise
         return rv
-
-    @off_main_thread
-    def _insert_node(self, node: Node) -> Awaitable[None]:
-        self._db.insert_node(node)
 
 
 class DownloadError(GoogleDriveError):
