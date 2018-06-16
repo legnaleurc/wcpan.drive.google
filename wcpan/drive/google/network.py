@@ -32,19 +32,18 @@ class Network(object):
     async def __aenter__(self) -> 'Network':
         oauth2_info = await self._settings.load_oauth2_info()
 
-        self._session = aiohttp.ClientSession()
-        self._oauth = CommandLineGoogleDriveOAuth2(
-            self._session,
-            oauth2_info['client_id'],
-            oauth2_info['client_secret'],
-            oauth2_info['redirect_uri'],
-            oauth2_info['access_token'],
-            oauth2_info['refresh_token'],
-        )
-
         async with aes.AsyncExitStack() as stack:
-            await stack.enter_async_context(self._session)
-            await stack.enter_async_context(self._oauth)
+            self._session = await stack.enter_async_context(
+                aiohttp.ClientSession())
+            self._oauth = await stack.enter_async_context(
+                CommandLineGoogleDriveOAuth2(
+                    self._session,
+                    oauth2_info['client_id'],
+                    oauth2_info['client_secret'],
+                    oauth2_info['redirect_uri'],
+                    oauth2_info['access_token'],
+                    oauth2_info['refresh_token'],
+                ))
             await self._settings.save_oauth2_info(self._oauth.access_token,
                                                   self._oauth.refresh_token)
             self._raii = stack.pop_all()
