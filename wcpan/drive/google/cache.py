@@ -81,7 +81,7 @@ class Cache(object):
         await self._bg(initialize)
         return self
 
-    async def __aexit__(self, exc_type, exc, tb) -> bool:
+    async def __aexit__(self, type_, value, traceback) -> bool:
         self._pool.shutdown()
 
     async def get_root_id(self) -> Text:
@@ -114,18 +114,18 @@ class Cache(object):
         return await self._bg(get_path_by_id, node_id)
 
     async def get_child_by_name_from_parent_id(self,
-            name: Text,
-            parent_id: Text
-        ) -> Union['Node', None]:
+        name: Text,
+        parent_id: Text
+    ) -> Union['Node', None]:
         return await self._bg(get_child_by_name_from_parent_id, name, parent_id)
 
     async def get_children_by_id(self, node_id: Text) -> List['Node']:
         return await self._bg(get_children_by_id, node_id)
 
     async def apply_changes(self,
-            changes: Dict[Text, Any],
-            check_point: Text,
-        ) -> None:
+        changes: Dict[Text, Any],
+        check_point: Text,
+    ) -> None:
         return await self._bg(apply_changes, changes, check_point)
 
     async def insert_node(self, node: 'Node') -> None:
@@ -268,7 +268,7 @@ class Database(object):
         self._db.row_factory = sqlite3.Row
         return self._db
 
-    def __exit__(self, exc_type, exc_value, exc_tb) -> bool:
+    def __exit__(self, type_, value, traceback) -> bool:
         self._db.close()
 
 
@@ -281,7 +281,7 @@ class ReadOnly(object):
         self._cursor = self._db.cursor()
         return self._cursor
 
-    def __exit__(self, exc_type, exc_value, exc_tb) -> bool:
+    def __exit__(self, type_, value, traceback) -> bool:
         self._cursor.close()
 
 
@@ -294,8 +294,8 @@ class ReadWrite(object):
         self._cursor = self._db.cursor()
         return self._cursor
 
-    def __exit__(self, exc_type, exc_value, exc_tb) -> bool:
-        if exc_type is None:
+    def __exit__(self, type_, value, traceback) -> bool:
+        if type_ is None:
             self._db.commit()
         else:
             self._db.rollback()
@@ -349,10 +349,10 @@ def get_node_by_id(dsn: Text, node_id: Text) -> Union['Node', None]:
 
 
 def get_node_by_path(
-        dsn: Text,
-        root_id: Text,
-        path_parts: List[Text],
-    ) -> Union['Node', None]:
+    dsn: Text,
+    root_id: Text,
+    path_parts: List[Text],
+) -> Union['Node', None]:
     node_id = root_id
     parts = path_parts
     with Database(dsn) as db, \
@@ -409,10 +409,10 @@ def get_path_by_id(dsn: Text, node_id: Text) -> Union[Text, None]:
 
 
 def get_child_by_name_from_parent_id(
-        dsn: Text,
-        name: Text,
-        parent_id: Text
-    ) -> Union['Node', None]:
+    dsn: Text,
+    name: Text,
+    parent_id: Text
+) -> Union['Node', None]:
     with Database(dsn) as db, \
          ReadOnly(db) as query:
         query.execute('''
@@ -445,10 +445,10 @@ def get_children_by_id(dsn: Text, node_id: Text) -> List['Node']:
 
 
 def apply_changes(
-        dsn: Text,
-        changes: Dict[Text, Any],
-        check_point: Text,
-    ) -> None:
+    dsn: Text,
+    changes: Dict[Text, Any],
+    check_point: Text,
+) -> None:
     with Database(dsn) as db, \
          ReadWrite(db) as query:
         for change in changes:
@@ -532,9 +532,9 @@ def inner_set_metadata(query: Text, key: Text, value: Text) -> None:
 
 
 def inner_get_node_by_id(
-        query: sqlite3.Cursor,
-        node_id: Text,
-    ) -> Union['Node', None]:
+    query: sqlite3.Cursor,
+    node_id: Text,
+) -> Union['Node', None]:
     query.execute('''
         SELECT id, name, status, created, modified
         FROM nodes
@@ -623,10 +623,10 @@ def inner_delete_node_by_id(query: sqlite3.Cursor, node_id: Text) -> None:
 
 
 def sqlite3_regexp(
-        pattern: 'Pattern',
-        _: Text,
-        cell: Union[Text, None],
-    ) -> bool:
+    pattern: 'Pattern',
+    _: Text,
+    cell: Union[Text, None],
+) -> bool:
     if cell is None:
         # root node
         return False
