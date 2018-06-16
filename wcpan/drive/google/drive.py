@@ -89,43 +89,43 @@ class Drive(object):
     async def get_root_node(self) -> Node:
         return await self._db.get_root_node()
 
-    async def get_node_by_id(self, node_id: Text) -> Awaitable[Node]:
+    async def get_node_by_id(self, node_id: Text) -> Node:
         return await self._db.get_node_by_id(node_id)
 
-    async def get_node_by_path(self, path: Text) -> Awaitable[Node]:
+    async def get_node_by_path(self, path: Text) -> Node:
         return await self._db.get_node_by_path(path)
 
-    async def get_path(self, node: Node) -> Awaitable[Text]:
+    async def get_path(self, node: Node) -> Text:
         return await self._db.get_path_by_id(node.id_)
 
-    async def get_path_by_id(self, node_id: Text) -> Awaitable[Text]:
+    async def get_path_by_id(self, node_id: Text) -> Text:
         return await self._db.get_path_by_id(node_id)
 
     async def get_child_by_name_from_parent_id(self,
-            name: Text,
-            parent_id: Text,
-        ) -> Awaitable[Node]:
+        name: Text,
+        parent_id: Text,
+    ) -> Node:
         return await self._db.get_child_by_name_from_parent_id(name, parent_id)
 
     async def get_child_by_name_from_parent(self,
-            name: Text,
-            parent: Node,
-        ) -> Awaitable[Node]:
+        name: Text,
+        parent: Node,
+    ) -> Node:
         return await self._db.get_child_by_name_from_parent_id(name, parent.id_)
 
-    async def get_children(self, node: Node) -> Awaitable[List[Node]]:
+    async def get_children(self, node: Node) -> List[Node]:
         return await self._db.get_children_by_id(node.id_)
 
-    async def get_children_by_id(self, node_id: Text) -> Awaitable[List[Node]]:
+    async def get_children_by_id(self, node_id: Text) -> List[Node]:
         return await self._db.get_children_by_id(node_id)
 
-    async def find_nodes_by_regex(self, pattern: Text) -> Awaitable[List[Node]]:
+    async def find_nodes_by_regex(self, pattern: Text) -> List[Node]:
         return await self._db.find_nodes_by_regex(pattern)
 
-    async def find_duplicate_nodes(self) -> Awaitable[List[Node]]:
+    async def find_duplicate_nodes(self) -> List[Node]:
         return await self._db.find_duplicate_nodes()
 
-    async def find_orphan_nodes(self) -> Awaitable[List[Node]]:
+    async def find_orphan_nodes(self) -> List[Node]:
         return await self._db.find_orphan_nodes()
 
     async def download_file_by_id(self, node_id: Text, path: Text) -> bool:
@@ -183,10 +183,10 @@ class Drive(object):
         return True
 
     async def create_folder(self,
-            parent_node: Node,
-            folder_name: Text,
-            exist_ok: bool = False,
-        ) -> Node:
+        parent_node: Node,
+        folder_name: Text,
+        exist_ok: bool = False,
+    ) -> Node:
         # sanity check
         if not parent_node:
             raise UploadError('invalid parent node')
@@ -212,10 +212,10 @@ class Drive(object):
         return node
 
     async def upload_file(self,
-            file_path: Text,
-            parent_node: Node,
-            exist_ok: bool = False,
-        ) -> Node:
+        file_path: Text,
+        parent_node: Node,
+        exist_ok: bool = False,
+    ) -> Node:
         # sanity check
         if not parent_node:
             raise UploadError('invalid parent node')
@@ -263,9 +263,9 @@ class Drive(object):
         return node
 
     async def fetch_node_by_name_from_parent_id(self,
-            name: Text,
-            parent_id: Text,
-        ) -> Node:
+        name: Text,
+        parent_id: Text,
+    ) -> Node:
         safe_name = re.sub(r"[\\']", r"\\\g<0>", name)
         query = "'{0}' in parents and name = '{1}'".format(parent_id,
                                                            safe_name)
@@ -369,12 +369,12 @@ class Drive(object):
             return dst_node, None
 
     async def _inner_upload_file(self,
-            file_path: Text,
-            file_name: Text,
-            total_file_size: int,
-            parent_id: Text,
-            mime_type: Text,
-        ) -> Tuple[Response, Text]:
+        file_path: Text,
+        file_name: Text,
+        total_file_size: int,
+        parent_id: Text,
+        mime_type: Text,
+    ) -> Tuple[Response, Text]:
         api = self._client.files
 
         rv = await api.initiate_uploading(file_name=file_name,
@@ -411,12 +411,12 @@ class Drive(object):
         return rv, local_md5
 
     async def _inner_try_upload_file(self,
-            url: Text,
-            producer: ContentProducer,
-            offset: int,
-            total_file_size: int,
-            mime_type: Text,
-        ) -> Tuple[bool, Union[Response, int]]:
+        url: Text,
+        producer: ContentProducer,
+        offset: int,
+        total_file_size: int,
+        mime_type: Text,
+    ) -> Tuple[bool, Union[Response, int]]:
         api = self._client.files
 
         try:
@@ -451,10 +451,10 @@ class Drive(object):
         return False, rv
 
     async def _inner_rename_node(self,
-            node: Node,
-            new_parent: Optional[Node],
-            name: Optional[Text],
-        ) -> Response:
+        node: Node,
+        new_parent: Optional[Node],
+        name: Optional[Text],
+    ) -> Response:
         if not new_parent and not name:
             raise ValueError('invalid arguments')
 
@@ -505,9 +505,9 @@ class FileConflictedError(GoogleDriveError):
 
 
 async def file_producer(
-        fin: 'file',
-        hasher: 'hashlib.hash',
-    ) -> AsyncGenerator[bytes, None]:
+    fin: 'file',
+    hasher: 'hashlib.hash',
+) -> AsyncGenerator[bytes, None]:
     while True:
         chunk = fin.read(CHUNK_SIZE)
         if not chunk:
