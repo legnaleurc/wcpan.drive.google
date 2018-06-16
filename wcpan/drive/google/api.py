@@ -54,9 +54,9 @@ class Changes(object):
         self._root = API_ROOT + '/changes'
 
     async def get_start_page_token(self,
-            supports_team_drives: bool = None,
-            team_drive_id: Text = None,
-        ) -> Response:
+        supports_team_drives: bool = None,
+        team_drive_id: Text = None,
+    ) -> Response:
         args = {}
         if supports_team_drives is not None:
             args['supportsTeamDrives'] = supports_team_drives
@@ -68,17 +68,17 @@ class Changes(object):
         return rv
 
     async def list_(self,
-            page_token: Text,
-            include_corpus_removals: bool = None,
-            include_removed: bool = None,
-            include_team_drive_items: bool = None,
-            page_size: int = None,
-            restrict_to_my_drive: bool = None,
-            spaces: Text = None,
-            supports_team_drives: bool = None,
-            team_drive_id: Text = None,
-            fields: Text = None,
-        ) -> Response:
+        page_token: Text,
+        include_corpus_removals: bool = None,
+        include_removed: bool = None,
+        include_team_drive_items: bool = None,
+        page_size: int = None,
+        restrict_to_my_drive: bool = None,
+        spaces: Text = None,
+        supports_team_drives: bool = None,
+        team_drive_id: Text = None,
+        fields: Text = None,
+    ) -> Response:
         args = {
             'pageToken': page_token,
         }
@@ -114,10 +114,10 @@ class Files(object):
 
     # only for metadata
     async def get(self,
-            file_id: Text,
-            supports_team_drives: bool = None,
-            fields: Text = None,
-        ) -> Response:
+        file_id: Text,
+        supports_team_drives: bool = None,
+        fields: Text = None,
+    ) -> Response:
         args = {}
         if supports_team_drives is not None:
             args['supportsTeamDrives'] = supports_team_drives
@@ -129,18 +129,18 @@ class Files(object):
         return rv
 
     async def list_(self,
-            corpora: Text = None,
-            corpus: Text = None,
-            include_team_drive_items: bool = None,
-            order_by: Text = None,
-            page_size: int = None,
-            page_token: Text = None,
-            q: Text = None,
-            spaces: Text = None,
-            supports_team_drives: bool = None,
-            team_drive_id: Text = None,
-            fields: Text = None,
-        ) -> Response:
+        corpora: Text = None,
+        corpus: Text = None,
+        include_team_drive_items: bool = None,
+        order_by: Text = None,
+        page_size: int = None,
+        page_token: Text = None,
+        q: Text = None,
+        spaces: Text = None,
+        supports_team_drives: bool = None,
+        team_drive_id: Text = None,
+        fields: Text = None,
+    ) -> Response:
         args = {}
         if corpora is not None:
             args['corpora'] = corpora
@@ -169,11 +169,11 @@ class Files(object):
         return rv
 
     async def download(self,
-            file_id: Text,
-            range_: Tuple[int, int],
-            acknowledge_abuse: bool = None,
-            supports_team_drives: bool = None,
-        ) -> Response:
+        file_id: Text,
+        range_: Tuple[int, int],
+        acknowledge_abuse: bool = None,
+        supports_team_drives: bool = None,
+    ) -> Response:
         args = {
             'alt': 'media',
         }
@@ -192,11 +192,11 @@ class Files(object):
         return rv
 
     async def initiate_uploading(self,
-            file_name: Text,
-            total_file_size: int,
-            parent_id: Text = None,
-            mime_type: Text = None,
-        ) -> Response:
+        file_name: Text,
+        total_file_size: int,
+        parent_id: Text = None,
+        mime_type: Text = None,
+    ) -> Response:
         if not file_name:
             raise ValueError('file name is empty')
         if total_file_size <= 0:
@@ -226,12 +226,12 @@ class Files(object):
         return rv
 
     async def upload(self,
-            uri: Text,
-            producer: ContentProducer,
-            offset: int,
-            total_file_size: int,
-            mime_type: Text = None,
-        ) -> Response:
+        uri: Text,
+        producer: ContentProducer,
+        offset: int,
+        total_file_size: int,
+        mime_type: Text = None,
+    ) -> Response:
         if not uri:
             raise ValueError('invalid session URI')
         if not producer:
@@ -257,9 +257,9 @@ class Files(object):
         return rv
 
     async def get_upload_status(self,
-            uri: Text,
-            total_file_size: int,
-        ) -> Response:
+        uri: Text,
+        total_file_size: int,
+    ) -> Response:
         if not uri:
             raise ValueError('invalid session URI')
         if total_file_size <= 0:
@@ -273,9 +273,9 @@ class Files(object):
         return rv
 
     async def create_folder(self,
-            folder_name: Text,
-            parent_id: Text = None,
-        ) -> Response:
+        folder_name: Text,
+        parent_id: Text = None,
+    ) -> Response:
         metadata = {
             'name': folder_name,
             'mimeType': FOLDER_MIME_TYPE,
@@ -294,10 +294,10 @@ class Files(object):
         return rv
 
     async def create_empty_file(self,
-            file_name: Text,
-            parent_id: Text = None,
-            mime_type: Text = None,
-        ) -> Response:
+        file_name: Text,
+        parent_id: Text = None,
+        mime_type: Text = None,
+    ) -> Response:
         if not file_name:
             raise ValueError('file name is empty')
 
@@ -322,12 +322,12 @@ class Files(object):
         return rv
 
     async def update(self,
-            file_id: Text,
-            name: Text = None,
-            add_parents: List[Text] = None,
-            remove_parents: List[Text] = None,
-            trashed: bool = None,
-        ) -> Response:
+        file_id: Text,
+        name: Text = None,
+        add_parents: List[Text] = None,
+        remove_parents: List[Text] = None,
+        trashed: bool = None,
+    ) -> Response:
         args = {}
         if add_parents is not None:
             args['addParents'] = ','.join(add_parents)
