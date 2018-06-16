@@ -50,7 +50,7 @@ class Network(object):
 
         return self
 
-    async def __aexit__(self, exc_type, exc, tb) -> bool:
+    async def __aexit__(self, type_, value, traceback) -> bool:
         await self._raii.aclose()
         self._backoff_level = 0
         self._session = None
@@ -58,13 +58,13 @@ class Network(object):
         self._raii = None
 
     async def fetch(self,
-            method: Text,
-            url: Text,
-            args: Dict[Text, Any] = None,
-            headers: Dict[Text, Text] = None,
-            body: ReadableContent = None,
-            raise_internal_error: bool = False,
-        ) -> 'Response':
+        method: Text,
+        url: Text,
+        args: Dict[Text, Any] = None,
+        headers: Dict[Text, Text] = None,
+        body: ReadableContent = None,
+        raise_internal_error: bool = False,
+    ) -> 'Response':
         while True:
             await self._maybe_backoff()
             try:
@@ -79,13 +79,13 @@ class Network(object):
                 WARNING('wcpan.drive.google') << str(e)
 
     async def _do_request(self,
-            method: Text,
-            url: Text,
-            args: Optional[Dict[Text, Any]],
-            headers: Optional[Dict[Text, Text]],
-            body: Optional[ReadableContent],
-            raise_internal_error: bool,
-        ) -> 'Response':
+        method: Text,
+        url: Text,
+        args: Optional[Dict[Text, Any]],
+        headers: Optional[Dict[Text, Text]],
+        body: Optional[ReadableContent],
+        raise_internal_error: bool,
+    ) -> 'Response':
         kwargs = {
             'method': method,
             'url': url,
@@ -110,8 +110,8 @@ class Network(object):
         return response
 
     def _prepare_headers(self,
-            headers: Optional[Dict[Text, Text]],
-        ) -> Dict[Text, Text]:
+        headers: Optional[Dict[Text, Text]],
+    ) -> Dict[Text, Text]:
         h = {
             'Authorization': 'Bearer {0}'.format(self._oauth.access_token),
         }
@@ -262,13 +262,13 @@ class NetworkError(GoogleDriveError):
 class CommandLineGoogleDriveOAuth2(object):
 
     def __init__(self,
-            session: aiohttp.ClientSession,
-            client_id: Text,
-            client_secret: Text,
-            redirect_uri: Text,
-            access_token: Text = None,
-            refresh_token: Text = None
-        ) -> None:
+        session: aiohttp.ClientSession,
+        client_id: Text,
+        client_secret: Text,
+        redirect_uri: Text,
+        access_token: Text = None,
+        refresh_token: Text = None
+    ) -> None:
         self._session = session
         self._client_id = client_id
         self._client_secret = client_secret
@@ -281,7 +281,7 @@ class CommandLineGoogleDriveOAuth2(object):
             await self._fetch_access_token()
         return self
 
-    async def __aexit__(self, exc_type, exc, tb) -> bool:
+    async def __aexit__(self, type_, value, traceback) -> bool:
         pass
 
     @property
@@ -398,8 +398,8 @@ async def backoff_needed(response: Response) -> bool:
 
 
 def normalize_query_string(
-        qs: Dict[Text, Any],
-    ) -> Generator[Tuple[Text, Text], None, None]:
+    qs: Dict[Text, Any],
+) -> Generator[Tuple[Text, Text], None, None]:
     for key, value in qs.items():
         if isinstance(value, bool):
             value = 'true' if value else 'false'
