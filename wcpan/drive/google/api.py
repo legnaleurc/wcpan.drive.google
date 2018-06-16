@@ -4,6 +4,8 @@ from typing import List, Text, Tuple
 from .network import Network, Response, ContentProducer
 from .util import FOLDER_MIME_TYPE, Settings
 
+import async_exit_stack as aes
+
 
 API_ROOT = 'https://www.googleapis.com/drive/v3'
 EMPTY_STRING = ''
@@ -13,22 +15,25 @@ class Client(object):
 
     def __init__(self, settings: Settings) -> None:
         self._settings = settings
-        self._network = None
-        self._api = None
-
-    async def __aenter__(self) -> 'Client':
         self._api = {
             'changes': Changes(self),
             'files': Files(self),
         }
-        s = self._settings
-        self._network = Network(s)
-        await self._network.__aenter__()
+        self._network = None
+        self._raii = None
+
+    async def __aenter__(self) -> 'Client':
+        async with aes.AsyncExitStack() as stack:
+            self._network = await stack.enter_async_context(
+                Network(self._settings))
+            self._raii = stack.pop_all()
 
         return self
 
-    async def __aexit__(self, exc_type, exc, tb) -> bool:
-        await self._network.__aexit__(exc_type, exc, tb)
+    async def __aexit__(self, type_, value, traceback) -> bool:
+        await self._raii.aclose()
+        self._network = None
+        self._raii = None
 
     @property
     def changes(self) -> 'Changes':
