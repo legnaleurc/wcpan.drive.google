@@ -391,15 +391,16 @@ async def action_tree(drive, args):
 async def action_download(drive, args):
     node_list = (get_node_by_id_or_path(drive, _) for _ in args.id_or_path)
     node_list = await asyncio.gather(*node_list)
+    node_list = [_ for _ in node_list if not _.is_trashed]
     queue_ = DownloadQueue(drive)
-    await queue_.download(node_list, args.destination)
+    await queue_.run(node_list, args.destination)
     return 0
 
 
 async def action_upload(drive, args):
     node = await get_node_by_id_or_path(drive, args.id_or_path)
     queue_ = UploadQueue(drive)
-    await queue_.upload(args.source, node)
+    await queue_.run(args.source, node)
     return 0
 
 
