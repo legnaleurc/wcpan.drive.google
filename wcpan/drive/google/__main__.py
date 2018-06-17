@@ -86,6 +86,8 @@ class AbstractQueue(object):
         return self._failed
 
     async def run(self, src_list, dst):
+        if not src_list:
+            return
         self._counter = 0
         total = (self.count_tasks(_) for _ in src_list)
         total = await asyncio.gather(*total)
