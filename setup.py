@@ -11,11 +11,12 @@ setup(
         packages=[
             'wcpan.drive.google',
         ],
+        python_requires='>= 3.6',
         install_requires=[
-            'PyYAML',
-            'aiohttp >= 3',
-            'async_exit_stack',
-            'wcpan.logger',
+            'PyYAML ~= 3.0',
+            'aiohttp ~= 3.0.0',
+            'async_exit_stack ~= 1.0.0',
+            'wcpan.logger ~= 1.0.0',
         ],
         classifiers=[
             'Programming Language :: Python :: 3 :: Only',
