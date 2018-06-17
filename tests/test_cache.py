@@ -11,16 +11,7 @@ import unittest.mock as utm
 from async_exit_stack import AsyncExitStack
 import wcpan.drive.google.cache as wdgc
 from wcpan.drive.google.util import FOLDER_MIME_TYPE
-
-
-def sync(fn):
-    @ft.wraps(fn)
-    def wrapper(*args, **kwargs):
-        loop = asyncio.get_event_loop()
-        f = fn(*args, **kwargs)
-        rv = loop.run_until_complete(f)
-        return rv
-    return wrapper
+import wcpan.worker as ww
 
 
 class TestTransaction(ut.TestCase):
@@ -102,7 +93,7 @@ class TestTransaction(ut.TestCase):
 
 class TestNodeCache(ut.TestCase):
 
-    @sync
+    @ww.sync
     async def setUp(self):
         _, self._file = tempfile.mkstemp()
         s = get_fake_settings(self._file)
@@ -113,17 +104,17 @@ class TestNodeCache(ut.TestCase):
 
         await initial_nodes(self._db)
 
-    @sync
+    @ww.sync
     async def tearDown(self):
         await self._stack.aclose()
         os.unlink(self._file)
 
-    @sync
+    @ww.sync
     async def testRoot(self):
         node = await self._db.get_root_node()
         self.assertEqual(node.id_, '__ROOT_ID__')
 
-    @sync
+    @ww.sync
     async def testSearch(self):
         nodes = await self._db.find_nodes_by_regex(r'^f1$')
         self.assertEqual(len(nodes), 1)

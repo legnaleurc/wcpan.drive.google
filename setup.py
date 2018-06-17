@@ -18,6 +18,11 @@ setup(
             'async_exit_stack ~= 1.0.0',
             'wcpan.logger ~= 1.0.0',
         ],
+        extras_require={
+            'tests': [
+                'wcpan.worker ~= 3.0.0',
+            ],
+        },
         classifiers=[
             'Programming Language :: Python :: 3 :: Only',
             'Programming Language :: Python :: 3.6',
