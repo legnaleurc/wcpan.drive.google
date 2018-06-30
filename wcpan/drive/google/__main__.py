@@ -456,6 +456,7 @@ async def trash_node(drive, id_or_path):
     try:
         rv = await drive.trash_node(node)
     except Exception as e:
+        wl.EXCEPTION('wcpan.drive.google', e) << 'trash failed'
         return id_or_path
     if not rv:
         return id_or_path
