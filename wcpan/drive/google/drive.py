@@ -297,7 +297,8 @@ class Drive(object):
         return node
 
     async def trash_node_by_id(self, node_id: Text) -> Node:
-        if node_id == self.root_node.id_:
+        node = await self.get_root_node()
+        if node_id == node.id_:
             return
         await self._client.files.update(node_id, trashed=True)
 
