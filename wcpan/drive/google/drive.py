@@ -102,17 +102,17 @@ class Drive(object):
     async def get_path_by_id(self, node_id: Text) -> Text:
         return await self._db.get_path_by_id(node_id)
 
-    async def get_child_by_name_from_parent_id(self,
+    async def get_node_by_name_from_parent_id(self,
         name: Text,
         parent_id: Text,
     ) -> Node:
-        return await self._db.get_child_by_name_from_parent_id(name, parent_id)
+        return await self._db.get_node_by_name_from_parent_id(name, parent_id)
 
-    async def get_child_by_name_from_parent(self,
+    async def get_node_by_name_from_parent(self,
         name: Text,
         parent: Node,
     ) -> Node:
-        return await self._db.get_child_by_name_from_parent_id(name, parent.id_)
+        return await self._db.get_node_by_name_from_parent_id(name, parent.id_)
 
     async def get_children(self, node: Node) -> List[Node]:
         return await self._db.get_children_by_id(node.id_)

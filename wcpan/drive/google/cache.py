@@ -119,11 +119,11 @@ class Cache(object):
     async def get_path_by_id(self, node_id: Text) -> Union[Text, None]:
         return await self._bg(get_path_by_id, node_id)
 
-    async def get_child_by_name_from_parent_id(self,
+    async def get_node_by_name_from_parent_id(self,
         name: Text,
         parent_id: Text
     ) -> Union['Node', None]:
-        return await self._bg(get_child_by_name_from_parent_id, name, parent_id)
+        return await self._bg(get_node_by_name_from_parent_id, name, parent_id)
 
     async def get_children_by_id(self, node_id: Text) -> List['Node']:
         return await self._bg(get_children_by_id, node_id)
@@ -414,7 +414,7 @@ def get_path_by_id(dsn: Text, node_id: Text) -> Union[Text, None]:
     return str(path)
 
 
-def get_child_by_name_from_parent_id(
+def get_node_by_name_from_parent_id(
     dsn: Text,
     name: Text,
     parent_id: Text
