@@ -75,14 +75,20 @@ class Cache(object):
     def __init__(self, dsn: Text) -> None:
         self._dsn = dsn
         self._loop = asyncio.get_event_loop()
-        self._pool = cf.ProcessPoolExecutor()
+        self._pool = None
+        self._raii = None
 
     async def __aenter__(self) -> 'Cache':
-        await self._bg(initialize)
+        with cl.ExitStack() as stack:
+            self._pool = stack.enter_context(cf.ProcessPoolExecutor())
+            await self._bg(initialize)
+            self._raii = stack.pop_all()
         return self
 
     async def __aexit__(self, type_, value, traceback) -> bool:
-        self._pool.shutdown()
+        self._raii.close()
+        self._pool = None
+        self._raii = None
 
     async def get_root_id(self) -> Text:
         return await self.get_metadata('root_id')
