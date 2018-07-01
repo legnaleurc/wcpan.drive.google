@@ -436,6 +436,14 @@ class Drive(object):
                 rv = await api.get_upload_status(url, total_file_size)
                 break
             except NetworkError as e:
+                if e.status == '410':
+                    # This means the temporary URL has been cleaned up by Google
+                    # Drive, so the client has to start over again.
+                    msg = (
+                        'the uploaded resource is gone, '
+                        'code: "{0}", reason: "{1}".'
+                    ).format(e.json['code'], e.json['message'])
+                    raise UploadError(msg)
                 if e.fatal:
                     raise
 
