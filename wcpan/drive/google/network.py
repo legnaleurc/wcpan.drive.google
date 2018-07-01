@@ -204,11 +204,10 @@ class Response(object):
         if self._parsed_json:
             return self._json
 
+        # Google Drive API does not use application/json
+        rv = await self._response.text()
         try:
-            rv = await self._response.json()
-        except aiohttp.ContentTypeError as e:
-            EXCEPTION('wcpan.drive.google') << rv
-            rv = None
+            rv = json.loads(rv)
         except ValueError as e:
             EXCEPTION('wcpan.drive.google') << rv
             rv = None
