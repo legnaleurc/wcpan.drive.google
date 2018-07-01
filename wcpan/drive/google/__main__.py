@@ -362,7 +362,7 @@ async def action_sync(drive, args):
 async def action_find(drive, args):
     nodes = await drive.find_nodes_by_regex(args.pattern)
     if not args.include_trash:
-        nodes = (_ for _ in nodes if _.is_available)
+        nodes = (_ for _ in nodes if not _.trashed)
     nodes = (wait_for_value(_.id_, drive.get_path(_)) for _ in nodes)
     nodes = await asyncio.gather(*nodes)
     nodes = dict(nodes)
@@ -393,7 +393,7 @@ async def action_tree(drive, args):
 async def action_download(drive, args):
     node_list = (get_node_by_id_or_path(drive, _) for _ in args.id_or_path)
     node_list = await asyncio.gather(*node_list)
-    node_list = [_ for _ in node_list if not _.is_trashed]
+    node_list = [_ for _ in node_list if not _.trashed]
     queue_ = DownloadQueue(drive)
     await queue_.run(node_list, args.destination)
     return 0

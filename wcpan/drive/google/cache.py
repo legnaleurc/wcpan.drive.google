@@ -1,13 +1,13 @@
 import asyncio
 import contextlib as cl
-import datetime as dt
 import concurrent.futures as cf
 import functools as ft
 import pathlib as pl
 import re
 import sqlite3
-import threading
 from typing import Any, Dict, List, Text, Union
+
+import arrow
 
 from . import util as u
 
@@ -24,12 +24,11 @@ SQL_CREATE_TABLES = [
     CREATE TABLE nodes (
         id TEXT NOT NULL,
         name TEXT,
-        status TEXT,
-        created DATETIME,
-        modified DATETIME,
+        trashed BOOLEAN,
+        created INTEGER,
+        modified INTEGER,
         PRIMARY KEY (id),
-        UNIQUE (id),
-        CHECK (status IN ('AVAILABLE', 'TRASH'))
+        UNIQUE (id)
     );
     ''',
     '''
@@ -53,10 +52,14 @@ SQL_CREATE_TABLES = [
     'CREATE INDEX ix_parentage_parent ON parentage(parent);',
     'CREATE INDEX ix_parentage_child ON parentage(child);',
     'CREATE INDEX ix_nodes_names ON nodes(name);',
-    'PRAGMA user_version = 1;',
+    'CREATE INDEX ix_nodes_trashed ON nodes(trashed);',
+    'CREATE INDEX ix_nodes_created ON nodes(created);',
+    'CREATE INDEX ix_nodes_modified ON nodes(modified);',
+    'PRAGMA user_version = 2;',
 ]
 
-CURRENT_SCHEMA_VERSION = 1
+
+CURRENT_SCHEMA_VERSION = 2
 
 
 class CacheError(u.GoogleDriveError):
@@ -189,30 +192,19 @@ class Node(object):
         return self._name
 
     @property
-    def status(self) -> Text:
-        return self._status
+    def trashed(self) -> bool:
+        return self._trashed
+
+    @trashed.setter
+    def trashed(self, trashed: bool) -> None:
+        self._trashed = trashed
 
     @property
-    def is_available(self) -> bool:
-        return self._status == 'AVAILABLE'
-
-    @property
-    def is_trashed(self) -> bool:
-        return self._status == 'TRASH'
-
-    @is_trashed.setter
-    def is_trashed(self, trashed: bool) -> None:
-        if trashed:
-            self._status = 'TRASH'
-        else:
-            self._status = 'AVAILABLE'
-
-    @property
-    def created(self) -> dt.datetime:
+    def created(self) -> arrow.Arrow:
         return self._created
 
     @property
-    def modified(self) -> dt.datetime:
+    def modified(self) -> arrow.Arrow:
         return self._modified
 
     @property
@@ -238,9 +230,9 @@ class Node(object):
         data = self._data
         self._id = data['id']
         self._name = data['name']
-        self._status = 'TRASH' if data['trashed'] else 'AVAILABLE'
-        self._created = u.from_isoformat(data['createdTime'])
-        self._modified = u.from_isoformat(data['modifiedTime'])
+        self._trashed = data['trashed']
+        self._created = arrow.get(data['createdTime'])
+        self._modified = arrow.get(data['modifiedTime'])
         self._parents = data.get('parents', None)
 
         self._is_folder = data['mimeType'] == u.FOLDER_MIME_TYPE
@@ -251,9 +243,9 @@ class Node(object):
         data = self._data
         self._id = data['id']
         self._name = data['name']
-        self._status = data['status']
-        self._created = data['created']
-        self._modified = data['modified']
+        self._trashed = bool(data['trashed'])
+        self._created = arrow.get(data['created'])
+        self._modified = arrow.get(data['modified'])
         self._parents = data.get('parents', None)
 
         self._is_folder = data['is_folder']
@@ -265,12 +257,9 @@ class Database(object):
 
     def __init__(self, dsn: Text) -> None:
         self._dsn = dsn
-        sqlite3.register_adapter(dt.datetime, lambda _: _.isoformat())
-        sqlite3.register_converter('DATETIME', to_dt)
 
     def __enter__(self) -> sqlite3.Connection:
-        self._db = sqlite3.connect(self._dsn,
-                                   detect_types=sqlite3.PARSE_DECLTYPES)
+        self._db = sqlite3.connect(self._dsn)
         self._db.row_factory = sqlite3.Row
         return self._db
 
@@ -328,8 +317,42 @@ def initialize(dsn: Text):
             migrate(db, version)
 
 
-def migrate(db: Text, version: Text) -> None:
-    raise NotImplementedError()
+def migrate(db: sqlite3.Connection, version: int) -> None:
+    # version 1 -> 2
+    db.create_function('IS_TRASHED', 1, lambda _: _ == 'TRASH')
+    db.create_function('ISO_TO_INT', 1, lambda _: arrow.get(_).timestamp)
+
+    SQL = [
+        'ALTER TABLE nodes RENAME TO old_nodes;',
+        '''
+        CREATE TABLE nodes (
+            id TEXT NOT NULL,
+            name TEXT,
+            trashed BOOLEAN,
+            created INTEGER,
+            modified INTEGER,
+            PRIMARY KEY (id),
+            UNIQUE (id)
+        );
+        ''',
+        '''
+        INSERT INTO nodes
+            (id, name, trashed, created, modified)
+        SELECT
+            id, name, IS_TRASHED(status), ISO_TO_INT(created),
+            ISO_TO_INT(modified)
+        FROM old_nodes
+        ;''',
+        'DROP TABLE old_nodes;',
+        'CREATE INDEX ix_nodes_trashed ON nodes(trashed);',
+        'CREATE INDEX ix_nodes_created ON nodes(created);',
+        'CREATE INDEX ix_nodes_modified ON nodes(modified);',
+        'PRAGMA user_version = 2;',
+    ]
+
+    with ReadWrite(db) as query:
+        for sql in SQL:
+            query.execute(sql)
 
 
 def get_metadata(dsn: Text, key: Text) -> Text:
@@ -542,7 +565,7 @@ def inner_get_node_by_id(
     node_id: Text,
 ) -> Union['Node', None]:
     query.execute('''
-        SELECT id, name, status, created, modified
+        SELECT id, name, trashed, created, modified
         FROM nodes
         WHERE id=?
     ;''', (node_id,))
@@ -578,10 +601,11 @@ def inner_insert_node(query: sqlite3.Cursor, node: Node) -> None:
     # add this node
     query.execute('''
         INSERT OR REPLACE INTO nodes
-        (id, name, status, created, modified)
+        (id, name, trashed, created, modified)
         VALUES
         (?, ?, ?, ?, ?)
-    ;''', (node.id_, node.name, node.status, node.created, node.modified))
+    ;''', (node.id_, node.name, node.trashed, node.created.timestamp,
+           node.modified.timestamp))
 
     # add file information
     if not node.is_folder:
@@ -637,8 +661,3 @@ def sqlite3_regexp(
         # root node
         return False
     return pattern.search(cell) is not None
-
-
-def to_dt(raw_datetime):
-    s = raw_datetime.decode('utf-8')
-    return u.from_isoformat(s)

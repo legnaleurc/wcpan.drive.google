@@ -304,16 +304,16 @@ class Drive(object):
         await self._client.files.update(node_id, trashed=True)
 
         node = await self.get_node_by_id(node_id)
-        node.is_trashed = True
+        node.trashed = True
         await self._db.insert_node(node)
 
         # update all children
         async for parent, folders, files in drive_walk(self, node):
             for folder in folders:
-                folder.is_trashed = True
+                folder.trashed = True
                 await self._db.insert_node(folder)
             for f in files:
-                f.is_trashed = True
+                f.trashed = True
                 await self._db.insert_node(f)
 
         return node

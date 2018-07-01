@@ -1,9 +1,7 @@
-import datetime as dt
 import hashlib
 import json
 import os
 import os.path as op
-import re
 from typing import Any, BinaryIO, Dict, Text
 
 import yaml
@@ -16,15 +14,6 @@ FOLDER_MIME_TYPE = 'application/vnd.google-apps.folder'
 
 class GoogleDriveError(Exception):
     pass
-
-
-class InvalidDateTimeError(GoogleDriveError):
-
-    def __init__(self, iso: Text) -> None:
-        self._iso = iso
-
-    def __str__(self) -> Text:
-        return 'invalid ISO date: ' + self._iso
 
 
 class Settings(object):
@@ -117,38 +106,6 @@ class Settings(object):
         rv = yaml.dump(token, default_flow_style=False)
         with open(token_path, 'w') as fout:
             fout.write(rv)
-
-
-def from_isoformat(iso_datetime: Text) -> dt.datetime:
-    rv = re.match(ISO_PATTERN, iso_datetime)
-    if not rv:
-        raise InvalidDateTimeError(iso_datetime)
-
-    year = int(rv.group(1), 10)
-    month = int(rv.group(2), 10)
-    day = int(rv.group(3), 10)
-    hour = int(rv.group(4), 10)
-    minute = int(rv.group(5), 10)
-    second = int(rv.group(6), 10)
-    if rv.group(8):
-        microsecond = rv.group(8).ljust(6, '0')
-        microsecond = int(microsecond, 10)
-    else:
-        microsecond = 0
-    tz = rv.group(9)
-    if tz == 'Z':
-        tz = dt.timezone.utc
-    else:
-        f = rv.group(11)
-        h = int(rv.group(12), 10)
-        m = int(rv.group(13), 10)
-        tz = dt.timedelta(hours=h, minutes=m)
-        if f == '-':
-            tz = -tz
-        tz = dt.timezone(tz)
-
-    rv = dt.datetime(year, month, day, hour, minute, second, microsecond, tz)
-    return rv
 
 
 def stream_md5sum(input_stream: BinaryIO) -> Text:
