@@ -11,7 +11,7 @@ setup(
         packages=[
             'wcpan.drive.google',
         ],
-        python_requires='>= 3.6',
+        python_requires='>= 3.7',
         install_requires=[
             'PyYAML ~= 3.12',
             'aiohttp ~= 3.3.2',
@@ -25,5 +25,5 @@ setup(
         },
         classifiers=[
             'Programming Language :: Python :: 3 :: Only',
-            'Programming Language :: Python :: 3.6',
+            'Programming Language :: Python :: 3.7',
         ])
