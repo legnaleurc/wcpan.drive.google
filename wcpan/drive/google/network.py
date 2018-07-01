@@ -1,4 +1,5 @@
 import asyncio
+import contextlib as cl
 import json
 import math
 import random
@@ -7,7 +8,6 @@ from typing import (Any, AsyncGenerator, AsyncIterator, Callable, Dict,
 import urllib.parse as up
 
 import aiohttp
-import async_exit_stack as aes
 from wcpan.logger import DEBUG, EXCEPTION, INFO, WARNING
 
 from .util import GoogleDriveError, Settings
@@ -32,7 +32,7 @@ class Network(object):
     async def __aenter__(self) -> 'Network':
         oauth2_info = await self._settings.load_oauth2_info()
 
-        async with aes.AsyncExitStack() as stack:
+        async with cl.AsyncExitStack() as stack:
             self._session = await stack.enter_async_context(
                 aiohttp.ClientSession())
             self._oauth = await stack.enter_async_context(

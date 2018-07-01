@@ -1,3 +1,4 @@
+import contextlib as cl
 import functools as ft
 import hashlib as hl
 import mimetypes
@@ -7,7 +8,6 @@ import re
 from typing import (Any, AsyncGenerator, Awaitable, Dict, List, Optional, Text,
                     Tuple, Union)
 
-import async_exit_stack as aes
 from wcpan.logger import INFO, WARNING, DEBUG
 
 from .api import Client
@@ -31,7 +31,7 @@ class Drive(object):
         self._raii = None
 
     async def __aenter__(self) -> 'Drive':
-        async with aes.AsyncExitStack() as stack:
+        async with cl.AsyncExitStack() as stack:
             self._client = await stack.enter_async_context(
                 Client(self._settings))
             self._db = await stack.enter_async_context(Cache(self._settings))

@@ -15,7 +15,6 @@ setup(
         install_requires=[
             'PyYAML ~= 3.12',
             'aiohttp ~= 3.3.2',
-            'async-exit-stack ~= 1.0.1',
             'wcpan.logger ~= 1.2.3',
         ],
         extras_require={

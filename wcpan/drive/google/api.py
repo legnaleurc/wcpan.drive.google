@@ -1,10 +1,9 @@
+import contextlib as cl
 import json
 from typing import List, Text, Tuple
 
 from .network import Network, Response, ContentProducer
 from .util import FOLDER_MIME_TYPE, Settings
-
-import async_exit_stack as aes
 
 
 API_ROOT = 'https://www.googleapis.com/drive/v3'
@@ -23,7 +22,7 @@ class Client(object):
         self._raii = None
 
     async def __aenter__(self) -> 'Client':
-        async with aes.AsyncExitStack() as stack:
+        async with cl.AsyncExitStack() as stack:
             self._network = await stack.enter_async_context(
                 Network(self._settings))
             self._raii = stack.pop_all()
