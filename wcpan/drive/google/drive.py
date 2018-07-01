@@ -34,7 +34,8 @@ class Drive(object):
         async with cl.AsyncExitStack() as stack:
             self._client = await stack.enter_async_context(
                 Client(self._settings))
-            self._db = await stack.enter_async_context(Cache(self._settings))
+            dsn = self._settings['nodes_database_file']
+            self._db = await stack.enter_async_context(Cache(dsn))
             self._raii = stack.pop_all()
         return self
 

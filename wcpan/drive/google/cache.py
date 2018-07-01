@@ -72,8 +72,8 @@ class CacheError(u.GoogleDriveError):
 
 class Cache(object):
 
-    def __init__(self, settings: u.Settings) -> None:
-        self._dsn = settings['nodes_database_file']
+    def __init__(self, dsn: Text) -> None:
+        self._dsn = dsn
         self._loop = asyncio.get_event_loop()
         self._pool = cf.ProcessPoolExecutor()
 

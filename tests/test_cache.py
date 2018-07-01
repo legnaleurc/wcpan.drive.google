@@ -95,10 +95,9 @@ class TestNodeCache(ut.TestCase):
     @ww.sync
     async def setUp(self):
         _, self._file = tempfile.mkstemp()
-        s = get_fake_settings(self._file)
 
         async with cl.AsyncExitStack() as ctx:
-            self._db = await ctx.enter_async_context(wdgc.Cache(s))
+            self._db = await ctx.enter_async_context(wdgc.Cache(self._file))
             self._stack = ctx.pop_all()
 
         await initial_nodes(self._db)
@@ -159,13 +158,6 @@ def inner_insert(query):
         VALUES
         (?, ?);
     ''', (2, 'bob'))
-
-
-def get_fake_settings(path):
-    d = {
-        'nodes_database_file': path,
-    }
-    return d
 
 
 def get_utc_now():
