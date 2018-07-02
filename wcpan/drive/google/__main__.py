@@ -125,7 +125,7 @@ class AbstractQueue(object):
         except Exception as e:
             self._add_failed(src)
             rv = None
-        await self._log_end(rv)
+        await self._log_end(src)
 
         if not rv:
             return None
@@ -143,7 +143,7 @@ class AbstractQueue(object):
         except Exception as e:
             self._add_failed(src)
             rv = None
-        await self._log_end(rv)
+        await self._log_end(src)
         return rv
 
     async def _wait_for_complete(self):
