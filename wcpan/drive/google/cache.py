@@ -348,6 +348,7 @@ def migrate(db: sqlite3.Connection, version: int) -> None:
         'CREATE INDEX ix_nodes_created ON nodes(created);',
         'CREATE INDEX ix_nodes_modified ON nodes(modified);',
         'PRAGMA user_version = 2;',
+        'VACUUM;',
     ]
 
     with ReadWrite(db) as query:
