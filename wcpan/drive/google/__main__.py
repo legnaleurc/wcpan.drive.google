@@ -74,6 +74,7 @@ class AbstractQueue(object):
         self._drive = drive
         self._queue = ww.AsyncQueue()
         self._counter = 0
+        self._table = {}
         self._total = 0
         self._failed = []
 
@@ -89,6 +90,7 @@ class AbstractQueue(object):
         if not src_list:
             return
         self._counter = 0
+        self._table = {}
         total = (self.count_tasks(_) for _ in src_list)
         total = await asyncio.gather(*total)
         self._total = sum(total)
@@ -113,8 +115,14 @@ class AbstractQueue(object):
     async def do_file(self, src, dst):
         raise NotImplementedError()
 
+    def get_source_hash(self, src):
+        raise NotImplementedError()
+
+    async def get_source_display(self, src):
+        raise NotImplementedError()
+
     async def _run_one_task(self, src, dst):
-        self._counter += 1
+        self._update_counter_table(src)
         if self.source_is_folder(src):
             rv = await self._run_for_folder(src, dst)
         else:
@@ -153,22 +161,26 @@ class AbstractQueue(object):
     def _add_failed(self, src):
         self._failed.append(src)
 
-    async def _log_begin(self, node_or_path):
-        await self._log('begin', node_or_path)
+    async def _log_begin(self, src):
+        await self._log('begin', src)
 
-    async def _log_end(self, node_or_path):
-        await self._log('end', node_or_path)
+    async def _log_end(self, src):
+        await self._log('end', src)
 
-    async def _log(self, begin_or_end, node_or_path):
-        progress = self._get_progress()
-        if node_or_path is None:
-            node_or_path = '__FATAL_ERROR__'
-        elif not isinstance(node_or_path, str):
-            node_or_path = await self._drive.get_path(node_or_path)
-        wl.INFO('wcpan.drive.google') << '{0} {1} {2}'.format(progress, begin_or_end, node_or_path)
+    async def _log(self, begin_or_end, src):
+        progress = self._get_progress(src)
+        display = await self.get_source_display(src)
+        wl.INFO('wcpan.drive.google') << '{0} {1} {2}'.format(progress, begin_or_end, display)
 
-    def _get_progress(self):
-        return '[{0}/{1}]'.format(self._counter, self._total)
+    def _get_progress(self, src):
+        key = self.get_source_hash(src)
+        id_ = self._table[key]
+        return '[{0}/{1}]'.format(id_, self._total)
+
+    def _update_counter_table(self, src):
+        key = self.get_source_hash(src)
+        self._counter += 1
+        self._table[key] = self._counter
 
 
 class UploadQueue(AbstractQueue):
@@ -215,6 +227,12 @@ class UploadQueue(AbstractQueue):
                     raise
         return node
 
+    def get_source_hash(self, local_path):
+        return local_path
+
+    async def get_source_display(self, local_path):
+        return local_path
+
 
 class DownloadQueue(AbstractQueue):
 
@@ -256,6 +274,12 @@ class DownloadQueue(AbstractQueue):
                 if e.status not in ('599',) and e.fatal:
                     raise
         return rv
+
+    def get_source_hash(self, node):
+        return node.id_
+
+    async def get_source_display(self, node):
+        return await self.drive.get_path(node)
 
 
 async def main(args=None):
