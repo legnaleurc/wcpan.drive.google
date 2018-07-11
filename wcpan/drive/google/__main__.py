@@ -11,6 +11,7 @@ import sys
 
 import yaml
 import wcpan.logger as wl
+import wcpan.worker as ww
 
 from .drive import Drive, DownloadError
 from .util import stream_md5sum
@@ -71,8 +72,7 @@ class AbstractQueue(object):
 
     def __init__(self, drive):
         self._drive = drive
-        self._lock = asyncio.Semaphore(value=8)
-        self._final = asyncio.Condition()
+        self._queue = ww.AsyncQueue()
         self._counter = 0
         self._total = 0
         self._failed = []
@@ -93,8 +93,10 @@ class AbstractQueue(object):
         total = await asyncio.gather(*total)
         self._total = sum(total)
         for src in src_list:
-            self._push_task(self._run_one_task(src, dst))
-        await self._wait_for_complete()
+            fn = ft.partial(self._run_one_task, src, dst)
+            self._queue.post(fn)
+        await self._queue.join()
+        await self._queue.shutdown()
 
     async def count_tasks(self, src):
         raise NotImplementedError()
@@ -112,6 +114,7 @@ class AbstractQueue(object):
         raise NotImplementedError()
 
     async def _run_one_task(self, src, dst):
+        self._counter += 1
         if self.source_is_folder(src):
             rv = await self._run_for_folder(src, dst)
         else:
@@ -132,7 +135,8 @@ class AbstractQueue(object):
 
         children = await self.get_children(src)
         for child in children:
-            self._push_task(self._run_one_task(child, rv))
+            fn = ft.partial(self._run_one_task, child, rv)
+            self._queue.post(fn)
 
         return rv
 
@@ -145,23 +149,6 @@ class AbstractQueue(object):
             rv = None
         await self._log_end(src)
         return rv
-
-    async def _wait_for_complete(self):
-        async with self._final:
-            await self._final.wait()
-
-    def _push_task(self, future):
-        future = self._task_runner(future)
-        loop = asyncio.get_event_loop()
-        loop.create_task(future)
-
-    async def _task_runner(self, future):
-        async with self._lock:
-            await future
-            self._counter += 1
-            if self._counter == self._total:
-                async with self._final:
-                    self._final.notify()
 
     def _add_failed(self, src):
         self._failed.append(src)

@@ -25,12 +25,8 @@ setup(
             'aiohttp ~= 3.3.2',
             'arrow ~= 0.12.1',
             'wcpan.logger ~= 1.2.3',
+            'wcpan.worker ~= 4.1.0',
         ],
-        extras_require={
-            'tests': [
-                'wcpan.worker ~= 3.0.1',
-            ],
-        },
         classifiers=[
             'Programming Language :: Python :: 3 :: Only',
             'Programming Language :: Python :: 3.7',
