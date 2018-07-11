@@ -123,20 +123,19 @@ class AbstractQueue(object):
 
     async def _run_one_task(self, src, dst):
         self._update_counter_table(src)
-        if self.source_is_folder(src):
-            rv = await self._run_for_folder(src, dst)
-        else:
-            rv = await self._run_for_file(src, dst)
+        async with self._log_guard(src):
+            if self.source_is_folder(src):
+                rv = await self._run_for_folder(src, dst)
+            else:
+                rv = await self._run_for_file(src, dst)
         return rv
 
     async def _run_for_folder(self, src, dst):
-        await self._log_begin(src)
         try:
             rv = await self.do_folder(src, dst)
         except Exception as e:
             self._add_failed(src)
             rv = None
-        await self._log_end(src)
 
         if not rv:
             return None
@@ -149,23 +148,23 @@ class AbstractQueue(object):
         return rv
 
     async def _run_for_file(self, src, dst):
-        await self._log_begin(src)
         try:
             rv = await self.do_file(src, dst)
         except Exception as e:
             self._add_failed(src)
             rv = None
-        await self._log_end(src)
         return rv
 
     def _add_failed(self, src):
         self._failed.append(src)
 
-    async def _log_begin(self, src):
+    @cl.asynccontextmanager
+    async def _log_guard(self, src):
         await self._log('begin', src)
-
-    async def _log_end(self, src):
-        await self._log('end', src)
+        try:
+            yield
+        finally:
+            await self._log('end', src)
 
     async def _log(self, begin_or_end, src):
         progress = self._get_progress(src)
