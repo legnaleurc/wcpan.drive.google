@@ -14,4 +14,4 @@ test:
 	python -m unittest
 
 install:
-	pip install -e '.[tests]'
+	pip install -e .
