@@ -294,14 +294,21 @@ async def main(args=None):
         await args.fallback_action()
         return 0
 
-    path = op.expanduser('~/.cache/wcpan/drive/google')
-
-    async with Drive(path) as drive:
+    async with Drive(args.conf) as drive:
         return await args.action(drive, args)
 
 
 def parse_args(args):
     parser = argparse.ArgumentParser('wdg')
+
+    path = op.expanduser('~/.cache/wcpan/drive/google')
+    parser.add_argument('-c', '--conf',
+        default=path,
+        help=(
+            'specify configuration file path'
+            ' (default: %(default)s)'
+        ),
+    )
 
     commands = parser.add_subparsers()
 
