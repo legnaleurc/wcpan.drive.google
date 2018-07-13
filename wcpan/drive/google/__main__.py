@@ -14,7 +14,7 @@ import wcpan.logger as wl
 import wcpan.worker as ww
 
 from .drive import Drive, DownloadError
-from .util import stream_md5sum
+from .util import stream_md5sum, get_default_conf_path
 from .network import NetworkError
 
 
@@ -301,9 +301,8 @@ async def main(args=None):
 def parse_args(args):
     parser = argparse.ArgumentParser('wdg')
 
-    path = op.expanduser('~/.cache/wcpan/drive/google')
     parser.add_argument('-c', '--conf',
-        default=path,
+        default=get_default_conf_path(),
         help=(
             'specify configuration file path'
             ' (default: %(default)s)'

@@ -115,7 +115,12 @@ def stream_md5sum(input_stream: BinaryIO) -> Text:
 
 
 def find_conf_path(path: Text = None):
-    if path is None:
-        path = '~/.cache/wcpan/drive/google'
-        path = op.expanduser(path)
+    if path is not None:
+        return path
+    return get_default_conf_path()
+
+
+def get_default_conf_path():
+    path = '~/.cache/wcpan/drive/google'
+    path = op.expanduser(path)
     return path
