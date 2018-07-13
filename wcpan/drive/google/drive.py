@@ -24,8 +24,8 @@ EMPTY_MD5SUM = 'd41d8cd98f00b204e9800998ecf8427e'
 
 class Drive(object):
 
-    def __init__(self, settings_path: Text = None) -> None:
-        self._settings = Settings(settings_path)
+    def __init__(self, conf_path: Text = None) -> None:
+        self._settings = Settings(conf_path)
         self._client = None
         self._db = None
         self._raii = None

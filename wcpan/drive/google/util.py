@@ -17,8 +17,8 @@ class GoogleDriveError(Exception):
 
 class Settings(object):
 
-    def __init__(self, path: Text) -> None:
-        self._path = path
+    def __init__(self, path: Text = None) -> None:
+        self._path = find_conf_path(path)
         self._data = {
             'version': 1,
             'save_credentials': False,
@@ -28,9 +28,6 @@ class Settings(object):
         self._initialize()
 
     def _initialize(self) -> None:
-        if not self._path:
-            return
-
         # default values for file
         self._data['version'] = 1
         self._data['client_config_backend'] = 'file'
@@ -115,3 +112,10 @@ def stream_md5sum(input_stream: BinaryIO) -> Text:
             break
         hasher.update(chunk)
     return hasher.hexdigest()
+
+
+def find_conf_path(path: Text = None):
+    if path is None:
+        path = '~/.cache/wcpan/drive/google'
+        path = op.expanduser(path)
+    return path
