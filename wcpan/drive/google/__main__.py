@@ -70,9 +70,9 @@ async def verify_upload_file(drive, local_path, remote_node):
 
 class AbstractQueue(object):
 
-    def __init__(self, drive):
+    def __init__(self, drive, jobs):
         self._drive = drive
-        self._queue = ww.AsyncQueue()
+        self._queue = ww.AsyncQueue(jobs)
         self._counter = 0
         self._table = {}
         self._total = 0
@@ -184,8 +184,8 @@ class AbstractQueue(object):
 
 class UploadQueue(AbstractQueue):
 
-    def __init__(self, drive):
-        super(UploadQueue, self).__init__(drive)
+    def __init__(self, drive, jobs):
+        super(UploadQueue, self).__init__(drive, jobs)
 
     async def count_tasks(self, local_path):
         total = 1
@@ -235,8 +235,8 @@ class UploadQueue(AbstractQueue):
 
 class DownloadQueue(AbstractQueue):
 
-    def __init__(self, drive):
-        super(DownloadQueue, self).__init__(drive)
+    def __init__(self, drive, jobs):
+        super(DownloadQueue, self).__init__(drive, jobs)
 
     async def count_tasks(self, node):
         total = 1
@@ -341,6 +341,13 @@ def parse_args(args):
         help='download files/folders',
     )
     dl_parser.set_defaults(action=action_download)
+    dl_parser.add_argument('-j', '--jobs', type=int,
+        default=1,
+        help=(
+            'maximum simultaneously download jobs'
+            ' (default: %(default)s)'
+        ),
+    )
     dl_parser.add_argument('id_or_path', type=str, nargs='+')
     dl_parser.add_argument('destination', type=str)
 
@@ -348,6 +355,13 @@ def parse_args(args):
         help='upload files/folders',
     )
     ul_parser.set_defaults(action=action_upload)
+    ul_parser.add_argument('-j', '--jobs', type=int,
+        default=1,
+        help=(
+            'maximum simultaneously upload jobs'
+            ' (default: %(default)s)'
+        ),
+    )
     ul_parser.add_argument('source', type=str, nargs='+')
     ul_parser.add_argument('id_or_path', type=str)
 
@@ -426,16 +440,28 @@ async def action_download(drive, args):
     node_list = (get_node_by_id_or_path(drive, _) for _ in args.id_or_path)
     node_list = await asyncio.gather(*node_list)
     node_list = [_ for _ in node_list if not _.trashed]
-    queue_ = DownloadQueue(drive)
+
+    queue_ = DownloadQueue(drive, args.jobs)
     await queue_.run(node_list, args.destination)
-    return 0
+
+    if not queue_.failed:
+        return 0
+    print('download failed:')
+    print_as_yaml(queue_.failed)
+    return 1
 
 
 async def action_upload(drive, args):
     node = await get_node_by_id_or_path(drive, args.id_or_path)
-    queue_ = UploadQueue(drive)
+
+    queue_ = UploadQueue(drive, args.jobs)
     await queue_.run(args.source, node)
-    return 0
+
+    if not queue_.failed:
+        return 0
+    print('upload failed:')
+    print_as_yaml(queue_.failed)
+    return 1
 
 
 async def action_remove(drive, args):
