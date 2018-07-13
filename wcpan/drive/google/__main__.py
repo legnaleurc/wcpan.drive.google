@@ -305,39 +305,55 @@ def parse_args(args):
 
     commands = parser.add_subparsers()
 
-    sync_parser = commands.add_parser('sync', aliases=['s'])
+    sync_parser = commands.add_parser('sync', aliases=['s'],
+        help='synchronize database',
+    )
     sync_parser.set_defaults(action=action_sync)
 
-    find_parser = commands.add_parser('find', aliases=['f'])
+    find_parser = commands.add_parser('find', aliases=['f'],
+        help='find files/folders by pattern [offline]',
+    )
     add_bool_argument(find_parser, 'id_only')
     add_bool_argument(find_parser, 'include_trash')
     find_parser.add_argument('pattern', type=str)
     find_parser.set_defaults(action=action_find, id_only=False,
                              include_trash=False)
 
-    list_parser = commands.add_parser('list', aliases=['ls'])
+    list_parser = commands.add_parser('list', aliases=['ls'],
+        help='list folder [offline]',
+    )
     list_parser.set_defaults(action=action_list)
     list_parser.add_argument('id_or_path', type=str)
 
-    tree_parser = commands.add_parser('tree')
+    tree_parser = commands.add_parser('tree',
+        help='recursive list folder [offline]',
+    )
     tree_parser.set_defaults(action=action_tree)
     tree_parser.add_argument('id_or_path', type=str)
 
-    dl_parser = commands.add_parser('download', aliases=['dl'])
+    dl_parser = commands.add_parser('download', aliases=['dl'],
+        help='download files/folders',
+    )
     dl_parser.set_defaults(action=action_download)
     dl_parser.add_argument('id_or_path', type=str, nargs='+')
     dl_parser.add_argument('destination', type=str)
 
-    ul_parser = commands.add_parser('upload', aliases=['ul'])
+    ul_parser = commands.add_parser('upload', aliases=['ul'],
+        help='upload files/folders',
+    )
     ul_parser.set_defaults(action=action_upload)
     ul_parser.add_argument('source', type=str, nargs='+')
     ul_parser.add_argument('id_or_path', type=str)
 
-    rm_parser = commands.add_parser('remove', aliases=['rm'])
+    rm_parser = commands.add_parser('remove', aliases=['rm'],
+        help='trash files/folders',
+    )
     rm_parser.set_defaults(action=action_remove)
     rm_parser.add_argument('id_or_path', type=str, nargs='+')
 
-    mv_parser = commands.add_parser('rename', aliases=['mv'])
+    mv_parser = commands.add_parser('rename', aliases=['mv'],
+        help='rename file/folder',
+    )
     mv_parser.set_defaults(action=action_rename)
     mv_parser.add_argument('source_id_or_path', type=str)
     mv_parser.add_argument('destination_path', type=str)
