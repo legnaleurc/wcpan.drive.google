@@ -9,7 +9,7 @@ with open(op.join(op.dirname(__file__), './README.md')) as fin:
 
 setup(
         name='wcpan.drive.google',
-        version='3.0.2',
+        version='3.1.0',
         author='Wei-Cheng Pan',
         author_email='legnaleurc@gmail.com',
         description='Asynchronous Google Drive API.',
