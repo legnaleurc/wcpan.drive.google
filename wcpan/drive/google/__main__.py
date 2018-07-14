@@ -244,6 +244,7 @@ class UploadVerifier(object):
         async with cl.AsyncExitStack() as stack:
             self._pool = stack.enter_context(cf.ProcessPoolExecutor())
             self._raii = stack.pop_all()
+        return self
 
     async def __aexit__(self, type_, exc, tb):
         await self._raii.aclose()
