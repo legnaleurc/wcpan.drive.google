@@ -405,6 +405,13 @@ def parse_args(args):
     mv_parser.add_argument('source_id_or_path', type=str)
     mv_parser.add_argument('destination_path', type=str)
 
+    v_parser = commands.add_parser('verify', aliases=['v'],
+        help='verify uploaded files/folders',
+    )
+    v_parser.set_defaults(action=action_verify)
+    v_parser.add_argument('source', type=str, nargs='+')
+    v_parser.add_argument('id_or_path', type=str)
+
     sout = io.StringIO()
     parser.print_help(sout)
     fallback = ft.partial(action_help, sout.getvalue())
@@ -506,6 +513,17 @@ async def action_rename(drive, args):
     node = await drive.rename_node(node, args.destination_path)
     path = await drive.get_path(node)
     return path
+
+
+async def action_verify(drive, args):
+    node = await get_node_by_id_or_path(drive, args.id_or_path)
+
+    async with UploadVerifier(drive) as v:
+        tasks = (pl.Path(local_path) for local_path in args.source)
+        tasks = [v.run(local_path, node) for local_path in tasks]
+        await asyncio.wait(tasks)
+
+    return 0
 
 
 async def get_node_by_id_or_path(drive, id_or_path):
