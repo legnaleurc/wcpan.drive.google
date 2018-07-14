@@ -1,5 +1,6 @@
 import argparse
 import asyncio
+import concurrent.futures as cf
 import contextlib as cl
 import functools as ft
 import hashlib
@@ -16,56 +17,6 @@ import wcpan.worker as ww
 from .drive import Drive, DownloadError
 from .util import stream_md5sum, get_default_conf_path
 from .network import NetworkError
-
-
-async def verify_upload(drive, local_path, remote_node):
-    if local_path.is_dir():
-        await verify_upload_directory(drive, local_path, remote_node)
-    else:
-        await verify_upload_file(drive, local_path, remote_node)
-
-
-async def verify_upload_directory(drive, local_path, remote_node):
-    dir_name = local_path.name
-
-    child_node = drive.get_node_by_name_from_parent(dir_name, remote_node)
-    if not child_node:
-        wl.ERROR('wcpan.drive.google') << 'not found : {0}'.format(local_path)
-        return
-    if not child_node.is_folder:
-        wl.ERROR('wcpan.drive.google') << 'should be folder : {0}'.format(local_path)
-        return
-
-    wl.INFO('wcpan.drive.google') << 'ok : {0}'.format(local_path)
-
-    for child_path in local_path.iterdir():
-        await verify_upload(drive, child_path, child_node)
-
-
-async def verify_upload_file(drive, local_path, remote_node):
-    file_name = local_path.name
-    remote_path = drive.get_path_by_id(remote_node.id_)
-    remote_path = pl.Path(remote_path, file_name)
-
-    child_node = drive.get_node_by_name_from_parent(file_name, remote_node)
-
-    if not child_node:
-        wl.ERROR('wcpan.drive.google') << 'not found : {0}'.format(local_path)
-        return
-    if child_node.is_folder:
-        wl.ERROR('wcpan.drive.google') << 'should be file : {0}'.format(local_path)
-        return
-    if not child_node.available:
-        wl.ERROR('wcpan.drive.google') << 'trashed : {0}'.format(local_path)
-        return
-
-    with open(local_path, 'rb') as fin:
-        local_md5 = stream_md5sum(fin)
-    if local_md5 != child_node.md5:
-        wl.ERROR('wcpan.drive.google') << 'md5 mismatch : {0}'.format(local_path)
-        return
-
-    wl.INFO('wcpan.drive.google') << 'ok : {0}'.format(local_path)
 
 
 class AbstractQueue(object):
@@ -279,6 +230,82 @@ class DownloadQueue(AbstractQueue):
 
     async def get_source_display(self, node):
         return await self.drive.get_path(node)
+
+
+class UploadVerifier(object):
+
+    def __init__(self, drive):
+        self._drive = drive
+        self._loop = asyncio.get_event_loop()
+        self._pool = None
+        self._raii = None
+
+    async def __aenter__(self):
+        async with cl.AsyncExitStack() as stack:
+            self._pool = stack.enter_context(cf.ProcessPoolExecutor())
+            self._raii = stack.pop_all()
+
+    async def __aexit__(self, type_, exc, tb):
+        await self._raii.aclose()
+        self._raii = None
+        self._pool = None
+
+    async def run(self, local_path, remote_node):
+        if local_path.is_dir():
+            await self._run_folder(local_path, remote_node)
+        else:
+            await self._run_file(local_path, remote_node)
+
+    async def _run_folder(self, local_path, remote_node):
+        dir_name = local_path.name
+
+        child_node = await self._get_child_node(local_path, dir_name,
+                                                remote_node)
+        if not child_node:
+            return
+        if not child_node.is_folder:
+            wl.ERROR('wcpan.drive.google') << '[NOT_FOLDER] {0}'.format(local_path)
+            return
+
+        wl.INFO('wcpan.drive.google') << '[OK] {0}'.format(local_path)
+
+        children = [self.run(child_path, child_node)
+                    for child_path in local_path.iterdir()]
+        await asyncio.wait(children)
+
+    async def _run_file(self, local_path, remote_node):
+        file_name = local_path.name
+        remote_path = await self._drive.get_path(remote_node)
+        remote_path = pl.Path(remote_path, file_name)
+
+        child_node = await self._get_child_node(local_path, file_name,
+                                                remote_node)
+        if not child_node:
+            return
+        if not child_node.is_file:
+            wl.ERROR('wcpan.drive.google') << '[NOT_FILE] {0}'.format(local_path)
+            return
+
+        local_md5 = await self._get_md5sum(local_path)
+        if local_md5 != child_node.md5:
+            wl.ERROR('wcpan.drive.google') << '[WRONG_MD5] {0}'.format(local_path)
+            return
+
+        wl.INFO('wcpan.drive.google') << '[OK] {0}'.format(local_path)
+
+    async def _get_child_node(self, local_path, name, remote_node):
+        child_node = await self._drive.get_node_by_name_from_parent(name,
+                                                                    remote_node)
+        if not child_node:
+            wl.ERROR('wcpan.drive.google') << '[MISSING] {0}'.format(local_path)
+            return None
+        if not child_node.available:
+            wl.ERROR('wcpan.drive.google') << '[TRASHED] {0}'.format(local_path)
+            return None
+        return child_node
+
+    async def _get_md5sum(self, local_path):
+        return await self._loop.run_in_executor(self._pool, md5sum, local_path)
 
 
 async def main(args=None):
@@ -523,6 +550,12 @@ async def trash_node(drive, id_or_path):
 
 async def wait_for_value(k, v):
     return k, await v
+
+
+def md5sum(local_path):
+    with open(local_path, 'rb') as fin:
+        local_md5 = stream_md5sum(fin)
+    return local_md5
 
 
 def print_node(name, level):
