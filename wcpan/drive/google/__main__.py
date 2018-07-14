@@ -300,7 +300,7 @@ class UploadVerifier(object):
         if not child_node:
             wl.ERROR('wcpan.drive.google') << '[MISSING] {0}'.format(local_path)
             return None
-        if not child_node.available:
+        if child_node.trashed:
             wl.ERROR('wcpan.drive.google') << '[TRASHED] {0}'.format(local_path)
             return None
         return child_node
