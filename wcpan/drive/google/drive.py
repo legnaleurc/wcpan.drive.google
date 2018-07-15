@@ -287,14 +287,12 @@ class Drive(object):
             return None
 
         node = Node.from_api(files[0])
-        await self._db.insert_node(node)
         return node
 
     async def fetch_node_by_id(self, node_id: Text) -> Node:
         rv = await self._client.files.get(node_id, fields=FILE_FIELDS)
         rv = await rv.json()
         node = Node.from_api(rv)
-        await self._db.insert_node(node)
         return node
 
     async def trash_node_by_id(self, node_id: Text) -> Node:
