@@ -452,7 +452,7 @@ async def action_find(drive, args):
         for id_ in nodes:
             print(id_)
     else:
-        print_as_yaml(nodes)
+        print_id_node_dict(nodes)
 
     return 0
 
@@ -461,7 +461,7 @@ async def action_list(drive, args):
     node = await get_node_by_id_or_path(drive, args.id_or_path)
     nodes = await drive.get_children(node)
     nodes = {_.id_: _.name for _ in nodes}
-    print_as_yaml(nodes)
+    print_id_node_dict(nodes)
     return 0
 
 
@@ -585,6 +585,12 @@ def print_node(name, level):
 def print_as_yaml(data):
     yaml.safe_dump(data, stream=sys.stdout, allow_unicode=True,
                    encoding=sys.stdout.encoding, default_flow_style=False)
+
+
+def print_id_node_dict(data):
+    pairs = sorted(data.items(), key=lambda _: _[1])
+    for id_, path in pairs:
+        print('{0}: {1}'.format(id_, path))
 
 
 main_loop = asyncio.get_event_loop()
