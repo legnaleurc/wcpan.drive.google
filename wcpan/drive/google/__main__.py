@@ -504,9 +504,11 @@ async def action_remove(drive, args):
     rv = await asyncio.gather(*rv)
     rv = filter(None, rv)
     rv = list(rv)
-    if rv:
-        print_as_yaml(rv)
-    return 0
+    if not rv:
+        return 0
+    print('trash failed:')
+    print_as_yaml(rv)
+    return 1
 
 
 async def action_rename(drive, args):
