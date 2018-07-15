@@ -8,6 +8,7 @@ import sqlite3
 from typing import Any, Dict, List, Text, Union
 
 import arrow
+from wcpan.logger import EXCEPTION
 
 from . import util as u
 
@@ -350,9 +351,16 @@ def migrate(db: sqlite3.Connection, version: int) -> None:
         'PRAGMA user_version = 2;',
     ]
 
+    try:
+        with ReadWrite(db) as query:
+            for sql in SQL:
+                query.execute(sql)
+        return
+    except Exception as e:
+        EXCEPTION('wcpan.drive.google', e) << 'migration 1 -> 2 failed'
+
     with ReadWrite(db) as query:
-        for sql in SQL:
-            query.execute(sql)
+        query.execute('ALTER TABLE old_nodes RENAME TO nodes;')
 
 
 def get_metadata(dsn: Text, key: Text) -> Text:
