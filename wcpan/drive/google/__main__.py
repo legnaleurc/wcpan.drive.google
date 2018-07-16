@@ -272,7 +272,8 @@ class UploadVerifier(object):
 
         children = [self.run(child_path, child_node)
                     for child_path in local_path.iterdir()]
-        await asyncio.wait(children)
+        if children:
+            await asyncio.wait(children)
 
     async def _run_file(self, local_path, remote_node):
         file_name = local_path.name
