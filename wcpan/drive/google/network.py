@@ -72,8 +72,6 @@ class Network(object):
                                             raise_internal_error)
                 return rv
             except NetworkError as e:
-                if e.status != '599':
-                    raise
                 if e._response.raise_internal_error:
                     raise
                 WARNING('wcpan.drive.google') << str(e)

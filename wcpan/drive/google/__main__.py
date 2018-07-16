@@ -156,7 +156,7 @@ class UploadQueue(AbstractQueue):
                 break
             except NetworkError as e:
                 wl.EXCEPTION('wcpan.drive.google', e)
-                if e.status not in ('599',) and e.fatal:
+                if e.fatal:
                     raise
         return node
 
@@ -173,7 +173,7 @@ class UploadQueue(AbstractQueue):
                 break
             except NetworkError as e:
                 wl.EXCEPTION('wcpan.drive.google', e)
-                if e.status not in ('599',) and e.fatal:
+                if e.fatal:
                     raise
         return node
 
@@ -221,7 +221,7 @@ class DownloadQueue(AbstractQueue):
                 raise
             except NetworkError as e:
                 wl.EXCEPTION('wcpan.drive.google', e)
-                if e.status not in ('599',) and e.fatal:
+                if e.fatal:
                     raise
         return rv
 
