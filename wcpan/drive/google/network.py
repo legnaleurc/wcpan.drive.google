@@ -66,7 +66,7 @@ class Network(object):
         raise_internal_error: bool = False,
     ) -> 'Response':
         while True:
-            await self._maybe_backoff()
+            await self._wait_backoff()
             try:
                 rv = await self._do_request(method, url, args, headers, body,
                                             raise_internal_error)
@@ -148,7 +148,7 @@ class Network(object):
     def _decrease_backoff_level(self) -> None:
         self._backoff_level = max(self._backoff_level - 1, 0)
 
-    async def _maybe_backoff(self) -> None:
+    async def _wait_backoff(self) -> None:
         if self._backoff_level <= 0:
             return
         seed = random.random()
