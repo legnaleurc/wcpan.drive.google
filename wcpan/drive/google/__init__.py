@@ -1,1 +1,2 @@
-from .drive import Drive, UploadError, DownloadError, FileConflictedError
+from .drive import (Drive, UploadError, DownloadError, FileConflictedError,
+                    InvalidNameError)

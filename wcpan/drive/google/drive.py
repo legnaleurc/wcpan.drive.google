@@ -12,7 +12,7 @@ from wcpan.logger import INFO, WARNING, DEBUG
 
 from .api import Client
 from .cache import Cache, Node
-from .network import ContentProducer, NetworkError, Response
+from .network import ContentProducer, ResponseError, Response, NetworkError
 from .util import (Settings, GoogleDriveError, stream_md5sum, FOLDER_MIME_TYPE,
                    CHUNK_SIZE)
 
@@ -56,7 +56,7 @@ class Drive(object):
         # first time, get root node
         if check_point == '1':
             rv = await self._client.files.get('root', fields=FILE_FIELDS)
-            rv = await rv.json()
+            rv = rv.json
             rv['name'] = None
             rv['parents'] = []
             node = Node.from_api(rv)
@@ -72,7 +72,7 @@ class Drive(object):
 
         while new_start_page_token is None:
             rv = await self._client.changes.list_(**changes_list_args)
-            rv = await rv.json()
+            rv = rv.json
             next_page_token = rv.get('nextPageToken', None)
             new_start_page_token = rv.get('newStartPageToken', None)
             changes = rv['changes']
@@ -174,9 +174,10 @@ class Drive(object):
 
         with open(tmp_path, 'ab') as fout:
             api = self._client.files
-            rv = await api.download(file_id=node.id_, range_=range_)
-            async for chunk in rv.chunks():
-                fout.write(chunk)
+            async with await api.download(file_id=node.id_,
+                                          range_=range_) as rv:
+                async for chunk in rv.chunks():
+                    fout.write(chunk)
 
         # rename it back if completed
         os.rename(tmp_path, complete_path)
@@ -207,7 +208,7 @@ class Drive(object):
         api = self._client.files
         rv = await api.create_folder(folder_name=folder_name,
                                      parent_id=parent_node.id_)
-        rv = await rv.json()
+        rv = rv.json
         node = await self.fetch_node_by_id(rv['id'])
 
         return node
@@ -255,7 +256,7 @@ class Drive(object):
             }
             rv, local_md5 = await self._inner_upload_file(**args)
 
-        rv = await rv.json()
+        rv = rv.json
         node = await self.fetch_node_by_id(rv['id'])
 
         if node.md5 != local_md5:
@@ -271,17 +272,15 @@ class Drive(object):
         query = "'{0}' in parents and name = '{1}'".format(parent_id,
                                                            safe_name)
         fields = 'files({0})'.format(FILE_FIELDS)
-        while True:
-            try:
-                rv = await self._client.files.list_(q=query, fields=fields)
-                break
-            except NetworkError as e:
-                if e.status == '400':
-                    DEBUG('wcpan.drive.google') << 'failed query:' << query
-                if e.fatal:
-                    raise
+        try:
+            rv = await self._client.files.list_(q=query, fields=fields)
+        except ResponseError as e:
+            if e.status == '400':
+                DEBUG('wcpan.drive.google') << 'invalid query string:' << query
+                raise InvalidNameError(name)
+            raise
 
-        rv = await rv.json()
+        rv = rv.json
         files = rv['files']
         if not files:
             return None
@@ -291,7 +290,7 @@ class Drive(object):
 
     async def fetch_node_by_id(self, node_id: Text) -> Node:
         rv = await self._client.files.get(node_id, fields=FILE_FIELDS)
-        rv = await rv.json()
+        rv = rv.json
         node = Node.from_api(rv)
         return node
 
@@ -425,26 +424,23 @@ class Drive(object):
                                   mime_type=mime_type)
             return True, rv
         except NetworkError as e:
+            pass
+        except ResponseError as e:
             if e.status == '404':
                 raise UploadError('the upload session has been expired')
-            if e.fatal:
-                raise
 
-        while True:
-            try:
-                rv = await api.get_upload_status(url, total_file_size)
-                break
-            except NetworkError as e:
-                if e.status == '410':
-                    # This means the temporary URL has been cleaned up by Google
-                    # Drive, so the client has to start over again.
-                    msg = (
-                        'the uploaded resource is gone, '
-                        'code: "{0}", reason: "{1}".'
-                    ).format(e.json['code'], e.json['message'])
-                    raise UploadError(msg)
-                if e.fatal:
-                    raise
+        try:
+            rv = await api.get_upload_status(url, total_file_size)
+        except ResponseError as e:
+            if e.status == '410':
+                # This means the temporary URL has been cleaned up by Google
+                # Drive, so the client has to start over again.
+                msg = (
+                    'the uploaded resource is gone, '
+                    'code: "{0}", reason: "{1}".'
+                ).format(e.json['code'], e.json['message'])
+                raise UploadError(msg)
+            raise
 
         if rv.status != '308':
             raise UploadError('invalid upload status')
@@ -475,13 +471,7 @@ class Drive(object):
             kwargs['add_parents'] = [new_parent.id_]
             kwargs['remove_parents'] = [node.parent_id]
 
-        while True:
-            try:
-                rv = await self._client.files.update(**kwargs)
-                break
-            except NetworkError as e:
-                if e.fatal:
-                    raise
+        rv = await self._client.files.update(**kwargs)
         return rv
 
 
@@ -510,6 +500,15 @@ class FileConflictedError(GoogleDriveError):
 
     def __str__(self) -> Text:
         return 'remote file already exists: ' + self._node.name
+
+
+class InvalidNameError(GoogleDriveError):
+
+    def __init__(self, name: Text) -> None:
+        self._name = name
+
+    def __str__(self) -> Text:
+        return 'invalid name: ' + self._name
 
 
 async def file_producer(
