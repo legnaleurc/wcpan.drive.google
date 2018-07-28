@@ -85,7 +85,8 @@ class AbstractQueue(object):
         try:
             rv = await self.do_folder(src, dst)
         except Exception as e:
-            self._add_failed(src)
+            display = await self.get_source_display(src)
+            self._add_failed(display)
             rv = None
 
         if not rv:
@@ -102,7 +103,8 @@ class AbstractQueue(object):
         try:
             rv = await self.do_file(src, dst)
         except Exception as e:
-            self._add_failed(src)
+            display = await self.get_source_display(src)
+            self._add_failed(display)
             rv = None
         return rv
 
