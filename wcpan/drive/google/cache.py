@@ -172,6 +172,9 @@ class Node(object):
     def __init__(self, data: Dict[Text, Any]) -> None:
         self._data = data
 
+    def __repr__(self):
+        return f"Node(id='{self.id_}')"
+
     @property
     def is_root(self) -> bool:
         return self._name is None
