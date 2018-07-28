@@ -1,5 +1,6 @@
 import asyncio
 import contextlib as cl
+import enum
 import json
 import math
 import random
@@ -14,7 +15,7 @@ from .util import GoogleDriveError, Settings
 
 
 BACKOFF_FACTOR = 2
-BACKOFF_STATUSES = ('403', '500', '502', '503', '504')
+BACKOFF_STATUSES = set(('403', '429', '500', '502', '503', '504'))
 
 ContentProducer = Callable[[], AsyncGenerator[bytes, None]]
 ReadableContent = Union[bytes, ContentProducer]
@@ -63,27 +64,86 @@ class Network(object):
         args: Dict[Text, Any] = None,
         headers: Dict[Text, Text] = None,
         body: ReadableContent = None,
-        raise_internal_error: bool = False,
-    ) -> 'Response':
+    ) -> 'JSONResponse':
+        while True:
+            kwargs = self._prepare_kwargs(method, url, args, headers, body)
+
+            try:
+                response = await self._request_loop(kwargs)
+            except aiohttp.ClientConnectionError as e:
+                continue
+
+            return await to_json_response(response)
+
+    async def upload(self,
+        method: Text,
+        url: Text,
+        args: Dict[Text, Any] = None,
+        headers: Dict[Text, Text] = None,
+        body: ReadableContent = None,
+    ) -> 'JSONResponse':
+        while True:
+            kwargs = self._prepare_kwargs(method, url, args, headers, body)
+            kwargs['timeout'] = 0.0
+
+            try:
+                response = await self._request_loop(kwargs)
+            except aiohttp.ClientConnectionError as e:
+                raise NetworkError()
+
+            return await to_json_response(response)
+
+    async def download(self,
+        method: Text,
+        url: Text,
+        args: Dict[Text, Any] = None,
+        headers: Dict[Text, Text] = None,
+        body: ReadableContent = None,
+    ) -> 'StreamResponse':
+        while True:
+            kwargs = self._prepare_kwargs(method, url, args, headers, body)
+            kwargs['timeout'] = 0.0
+
+            try:
+                response = await self._request_loop(kwargs)
+            except aiohttp.ClientConnectionError as e:
+                continue
+
+            return StreamResponse(response)
+
+    async def _request_loop(self,
+        kwargs: Dict[Text, Any],
+    ) -> aiohttp.ClientResponse:
         while True:
             await self._wait_backoff()
-            try:
-                rv = await self._do_request(method, url, args, headers, body,
-                                            raise_internal_error)
-                return rv
-            except NetworkError as e:
-                if e._response.raise_internal_error:
-                    raise
-                WARNING('wcpan.drive.google') << str(e)
 
-    async def _do_request(self,
+            try:
+                response = await self._session.request(**kwargs)
+            except aiohttp.ClientConnectionError as e:
+                self._adjust_backoff_level(True)
+                raise
+
+            status = str(response.status)
+            rv = await self._check_status(status, response)
+            if rv == Status.OK:
+                return response
+            if rv == Status.REFRESH:
+                await self._renew_token()
+                self._update_token_header(kwargs['headers'])
+                continue
+            if rv == Status.BACKOFF:
+                continue
+
+            json_ = await response.json()
+            raise ResponseError(status, response, json_)
+
+    def _prepare_kwargs(self,
         method: Text,
         url: Text,
         args: Optional[Dict[Text, Any]],
         headers: Optional[Dict[Text, Text]],
         body: Optional[ReadableContent],
-        raise_internal_error: bool,
-    ) -> 'Response':
+    ) -> Dict[Text, Any]:
         kwargs = {
             'method': method,
             'url': url,
@@ -93,60 +153,48 @@ class Network(object):
             kwargs['params'] = list(normalize_query_string(args))
         if body is not None:
             kwargs['data'] = body if not callable(body) else body()
-        if raise_internal_error:
-            # do not raise timeout from client
-            kwargs['timeout'] = 0
-
-        # retry if access token expired
-        while True:
-            response = await self._session.request(**kwargs)
-            response = Response(response, raise_internal_error)
-            if await self._handle_status(response):
-                break
-            kwargs['headers'] = self._prepare_headers(headers)
-
-        return response
+        return kwargs
 
     def _prepare_headers(self,
         headers: Optional[Dict[Text, Text]],
     ) -> Dict[Text, Text]:
-        h = {
-            'Authorization': 'Bearer {0}'.format(self._oauth.access_token),
-        }
-        if headers is not None:
-            h.update(headers)
-        h = {k: v if isinstance(v, (bytes, str)) or v is None else str(v)
-             for k, v in h.items()}
+        if headers is None:
+            h = {}
+        else:
+            h = {k: v if isinstance(v, (bytes, str)) or v is None else str(v)
+                 for k, v in headers.items()}
+        self._update_token_header(h)
         return h
 
-    async def _handle_status(self, response: 'Response') -> 'Response':
-        backoff = await backoff_needed(response)
+    def _update_token_header(self, headers: Dict[Text, Text]) -> None:
+        headers['Authorization'] = f'Bearer {self._oauth.access_token}'
+
+    async def _check_status(self,
+        status: Text,
+        response: aiohttp.ClientResponse,
+    ) -> 'Status':
+        backoff = await backoff_needed(status, response)
+        self._adjust_backoff_level(backoff)
         if backoff:
-            self._increase_backoff_level()
-        else:
-            self._decrease_backoff_level()
+            # rate limit error, too many request, server error
+            return Status.BACKOFF
 
         # normal response
-        if response.status[0] in ('1', '2', '3'):
-            return True
+        if status[0] in ('1', '2', '3'):
+            return Status.OK
 
         # need to refresh access token
-        if response.status == '401':
-            INFO('wcpan.drive.google') << 'refresh token'
-            await self._oauth.refresh()
-            await self._settings.save_oauth2_info(self._oauth.access_token,
-                                                  self._oauth.refresh_token)
-            return False
+        if status == '401':
+            return Status.REFRESH
 
         # otherwise it is an error
-        json_ = await response.json()
-        raise NetworkError(response, json_, not backoff)
+        return Status.UNKNOWN
 
-    def _increase_backoff_level(self) -> None:
-        self._backoff_level = min(self._backoff_level + 2, 10)
-
-    def _decrease_backoff_level(self) -> None:
-        self._backoff_level = max(self._backoff_level - 1, 0)
+    def _adjust_backoff_level(self, backoff: bool) -> None:
+        if backoff:
+            self._backoff_level = min(self._backoff_level + 2, 10)
+        else:
+            self._backoff_level = max(self._backoff_level - 1, 0)
 
     async def _wait_backoff(self) -> None:
         if self._backoff_level <= 0:
@@ -157,6 +205,11 @@ class Network(object):
         s_delay = min(100, s_delay)
         DEBUG('wcpan.drive.google') << 'backoff for' << s_delay
         await asyncio.sleep(s_delay)
+
+    async def _renew_token(self) -> None:
+        await self._oauth.refresh()
+        await self._settings.save_oauth2_info(self._oauth.access_token,
+                                              self._oauth.refresh_token)
 
 
 class Request(object):
@@ -179,81 +232,85 @@ class Request(object):
 
 class Response(object):
 
-    def __init__(self,
-            response: aiohttp.ClientResponse,
-            raise_internal_error: bool,
-        ) -> None:
+    def __init__(self, response: aiohttp.ClientResponse) -> None:
         self._response = response
-        self._raise_internal_error = raise_internal_error
-        self._request = Request(response.request_info)
         self._status = str(response.status)
-        self._parsed_json = False
-        self._json = None
+        self._request = Request(response.request_info)
 
     @property
-    def status(self) -> Text:
+    def status(self):
         return self._status
-
-    @property
-    def reason(self) -> Text:
-        return self._response.reason
-
-    async def json(self) -> Any:
-        if self._parsed_json:
-            return self._json
-
-        # Google Drive API does not use application/json
-        rv = await self._response.text()
-        try:
-            rv = json.loads(rv)
-        except ValueError as e:
-            EXCEPTION('wcpan.drive.google') << rv
-            rv = None
-
-        self._json = rv
-        self._parsed_json = True
-
-        return self._json
-
-    def chunks(self) -> AsyncIterator[bytes]:
-        return self._response.content.iter_any()
-
-    @property
-    def request(self) -> Request:
-        return self._request
-
-    @property
-    def raise_internal_error(self) -> bool:
-        return self._raise_internal_error
 
     def get_header(self, key: Text) -> Text:
         h = self._response.headers.getall(key)
         return None if not h else h[0]
 
 
-class NetworkError(GoogleDriveError):
+class JSONResponse(Response):
 
-    def __init__(self, response: Response, json_: Any, fatal: bool) -> None:
+    def __init__(self,
+        response: aiohttp.ClientResponse,
+        json_: Dict[Text, Any],
+    ) -> None:
+        super().__init__(response)
+        self._json = json_
+
+    @property
+    def json(self) -> Dict[Text, Any]:
+        return self._json
+
+
+class StreamResponse(Response):
+
+    def __init__(self, response: aiohttp.ClientResponse) -> None:
+        super().__init__(response)
+
+    async def __aenter__(self) -> 'StreamResponse':
+        await self._response.__aenter__()
+        return self
+
+    async def __aexit__(self, type_, exc, tb) -> bool:
+        await self._response.__aexit__(type_, exc, tb)
+
+    def chunks(self) -> AsyncIterator[bytes]:
+        return self._response.content.iter_any()
+
+
+async def to_json_response(response: aiohttp.ClientResponse) -> JSONResponse:
+    async with response:
+        if response.content_type == 'application/json':
+            json_ = await response.json()
+        else:
+            json_ = await response.text()
+    return JSONResponse(response, json_)
+
+
+class ResponseError(GoogleDriveError):
+
+    def __init__(self,
+        status: Text,
+        response: aiohttp.ClientResponse,
+        json_: Dict[Text, Any],
+    ) -> None:
+        self._status = status
         self._response = response
-        self._message = '{0} {1} - {2}'.format(self.status,
-                                               self._response.reason,
-                                               json_)
-        self._fatal = fatal
+        self._message = f'{self.status} {self._response.reason} - {json_}'
+        self._json = json_
 
     def __str__(self) -> Text:
         return self._message
 
     @property
     def status(self) -> Text:
-        return self._response.status
-
-    @property
-    def fatal(self) -> bool:
-        return self._fatal
+        return self._status
 
     @property
     def json(self) -> Any:
         return self._json
+
+
+class NetworkError(GoogleDriveError):
+    pass
 
 
 class CommandLineGoogleDriveOAuth2(object):
@@ -375,21 +432,31 @@ class CommandLineGoogleDriveOAuth2(object):
         return input().strip()
 
 
-async def backoff_needed(response: Response) -> bool:
-    if response.status not in BACKOFF_STATUSES:
+class Status(enum.Enum):
+
+    OK = enum.auto()
+    REFRESH = enum.auto()
+    BACKOFF = enum.auto()
+    UNKNOWN = enum.auto()
+
+
+async def backoff_needed(
+    status: Text,
+    response: aiohttp.ClientResponse,
+) -> bool:
+    if status not in BACKOFF_STATUSES:
         return False
 
-    # if it is not a rate limit error, it could be handled immediately
-    if response.status == '403':
+    # not all 403 errors are rate limit error
+    if status == '403':
         msg = await response.json()
         if not msg:
+            # undefined behavior, probably a server problem, better backoff
             WARNING('wcpan.drive.google') << '403 with empty error message'
-            # probably server problem, backoff for safety
             return True
         domain = msg['error']['errors'][0]['domain']
         if domain != 'usageLimits':
             return False
-        INFO('wcpan.drive.google') << msg['error']['message']
 
     return True
 
