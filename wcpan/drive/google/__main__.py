@@ -16,7 +16,6 @@ import wcpan.worker as ww
 
 from .drive import Drive, DownloadError
 from .util import stream_md5sum, get_default_conf_path
-from .network import NetworkError
 
 
 class AbstractQueue(object):
@@ -85,6 +84,7 @@ class AbstractQueue(object):
         try:
             rv = await self.do_folder(src, dst)
         except Exception as e:
+            wl.EXCEPTION('wcpan.drive.google', e)
             display = await self.get_source_display(src)
             self._add_failed(display)
             rv = None
@@ -103,6 +103,7 @@ class AbstractQueue(object):
         try:
             rv = await self.do_file(src, dst)
         except Exception as e:
+            wl.EXCEPTION('wcpan.drive.google', e)
             display = await self.get_source_display(src)
             self._add_failed(display)
             rv = None
@@ -151,15 +152,8 @@ class UploadQueue(AbstractQueue):
 
     async def do_folder(self, local_path, parent_node):
         folder_name = op.basename(local_path)
-        while True:
-            try:
-                node = await self.drive.create_folder(parent_node, folder_name,
-                                                      exist_ok=True)
-                break
-            except NetworkError as e:
-                wl.EXCEPTION('wcpan.drive.google', e)
-                if e.fatal:
-                    raise
+        node = await self.drive.create_folder(parent_node, folder_name,
+                                              exist_ok=True)
         return node
 
     async def get_children(self, local_path):
@@ -168,15 +162,8 @@ class UploadQueue(AbstractQueue):
         return rv
 
     async def do_file(self, local_path, parent_node):
-        while True:
-            try:
-                node = await self.drive.upload_file(local_path, parent_node,
-                                                    exist_ok=True)
-                break
-            except NetworkError as e:
-                wl.EXCEPTION('wcpan.drive.google', e)
-                if e.fatal:
-                    raise
+        node = await self.drive.upload_file(local_path, parent_node,
+                                            exist_ok=True)
         return node
 
     def get_source_hash(self, local_path):
@@ -203,28 +190,14 @@ class DownloadQueue(AbstractQueue):
 
     async def do_folder(self, node, local_path):
         full_path = op.join(local_path, node.name)
-        try:
-            os.makedirs(full_path, exist_ok=True)
-        except Exception as e:
-            wl.EXCEPTION('wcpan.drive.google', e)
-            raise
+        os.makedirs(full_path, exist_ok=True)
         return full_path
 
     async def get_children(self, node):
         return await self.drive.get_children(node)
 
     async def do_file(self, node, local_path):
-        while True:
-            try:
-                rv = await self.drive.download_file(node, local_path)
-                break
-            except DownloadError as e:
-                wl.EXCEPTION('wcpan.drive.google', e)
-                raise
-            except NetworkError as e:
-                wl.EXCEPTION('wcpan.drive.google', e)
-                if e.fatal:
-                    raise
+        rv = await self.drive.download_file(node, local_path)
         return rv
 
     def get_source_hash(self, node):
