@@ -14,23 +14,25 @@ class Client(object):
 
     def __init__(self, settings: Settings) -> None:
         self._settings = settings
-        self._api = {
-            'changes': Changes(self),
-            'files': Files(self),
-        }
         self._network = None
+        self._api = None
         self._raii = None
 
     async def __aenter__(self) -> 'Client':
         async with cl.AsyncExitStack() as stack:
             self._network = await stack.enter_async_context(
                 Network(self._settings))
+            self._api = {
+                'changes': Changes(self._network),
+                'files': Files(self._network),
+            }
             self._raii = stack.pop_all()
 
         return self
 
     async def __aexit__(self, type_, value, traceback) -> bool:
         await self._raii.aclose()
+        self._api = None
         self._network = None
         self._raii = None
 
@@ -42,14 +44,11 @@ class Client(object):
     def files(self) -> 'Files':
         return self._api['files']
 
-    async def _do_request(self, *args, **kwargs) -> Response:
-        return await self._network.fetch(*args, **kwargs)
-
 
 class Changes(object):
 
-    def __init__(self, client: Client) -> None:
-        self._client = client
+    def __init__(self, network: Network) -> None:
+        self._network = network
         self._root = API_ROOT + '/changes'
 
     async def get_start_page_token(self,
@@ -63,7 +62,7 @@ class Changes(object):
             args['teamDriveId'] = team_drive_id
 
         uri = self._root + '/startPageToken'
-        rv = await self._client._do_request('GET', uri, args)
+        rv = await self._network.fetch('GET', uri, args)
         return rv
 
     async def list_(self,
@@ -100,14 +99,14 @@ class Changes(object):
         if fields is not None:
             args['fields'] = fields
 
-        rv = await self._client._do_request('GET', self._root, args)
+        rv = await self._network.fetch('GET', self._root, args)
         return rv
 
 
 class Files(object):
 
-    def __init__(self, client: Client) -> None:
-        self._client = client
+    def __init__(self, network: Network) -> None:
+        self._network = network
         self._root = API_ROOT + '/files'
         self._upload_uri = 'https://www.googleapis.com/upload/drive/v3/files'
 
@@ -124,7 +123,7 @@ class Files(object):
             args['fields'] = fields
 
         uri = self._root + '/' + file_id
-        rv = await self._client._do_request('GET', uri, args)
+        rv = await self._network.fetch('GET', uri, args)
         return rv
 
     async def list_(self,
@@ -164,7 +163,7 @@ class Files(object):
         if fields is not None:
             args['fields'] = fields
 
-        rv = await self._client._do_request('GET', self._root, args)
+        rv = await self._network.fetch('GET', self._root, args)
         return rv
 
     async def download(self,
@@ -186,8 +185,7 @@ class Files(object):
         }
 
         uri = self._root + '/' + file_id
-        rv = await self._client._do_request('GET', uri, args, headers=headers,
-                                            raise_internal_error=True)
+        rv = await self._network.download('GET', uri, args, headers=headers)
         return rv
 
     async def initiate_uploading(self,
@@ -220,8 +218,8 @@ class Files(object):
             'uploadType': 'resumable',
         }
 
-        rv = await self._client._do_request('POST', self._upload_uri, args,
-                                            headers=headers, body=metadata)
+        rv = await self._network.fetch('POST', self._upload_uri, args,
+                                       headers=headers, body=metadata)
         return rv
 
     async def upload(self,
@@ -249,10 +247,9 @@ class Files(object):
         if mime_type is not None:
             headers['Content-Type'] = mime_type
 
-        # upload usually need more time to complete
-        rv = await self._client._do_request('PUT', uri, headers=headers,
-                                            body=producer,
-                                            raise_internal_error=True)
+        # may raise timeout error, upload usually need more time to complete.
+        rv = await self._network.upload('PUT', uri, headers=headers,
+                                        body=producer)
         return rv
 
     async def get_upload_status(self,
@@ -268,7 +265,7 @@ class Files(object):
             'Content-Length': 0,
             'Content-Range': 'bytes */{0}'.format(total_file_size),
         }
-        rv = await self._client._do_request('PUT', uri, headers=headers)
+        rv = await self._network.fetch('PUT', uri, headers=headers)
         return rv
 
     async def create_folder(self,
@@ -288,8 +285,8 @@ class Files(object):
             'Content-Length': len(metadata),
         }
 
-        rv = await self._client._do_request('POST', self._root, headers=headers,
-                                            body=metadata)
+        rv = await self._network.fetch('POST', self._root, headers=headers,
+                                       body=metadata)
         return rv
 
     async def create_empty_file(self,
@@ -316,8 +313,8 @@ class Files(object):
             'Content-Length': len(metadata),
         }
 
-        rv = await self._client._do_request('POST', self._root, headers=headers,
-                                            body=metadata)
+        rv = await self._network.fetch('POST', self._root, headers=headers,
+                                       body=metadata)
         return rv
 
     async def update(self,
@@ -350,6 +347,6 @@ class Files(object):
         }
 
         uri = self._root + '/' + file_id
-        rv = await self._client._do_request('PATCH', uri, args, headers=headers,
-                                            body=metadata)
+        rv = await self._network.fetch('PATCH', uri, args, headers=headers,
+                                       body=metadata)
         return rv
