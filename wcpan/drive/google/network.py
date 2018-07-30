@@ -73,7 +73,12 @@ class Network(object):
             except aiohttp.ClientConnectionError as e:
                 continue
 
-            return await to_json_response(response)
+            try:
+                return await to_json_response(response)
+            except aiohttp.ClientConnectionError as e:
+                # The server recived the request, but reading body failed.
+                # We are in a broken state, just let client to handle it.
+                raise NetworkError()
 
     async def upload(self,
         method: Text,
@@ -82,16 +87,16 @@ class Network(object):
         headers: Dict[Text, Text] = None,
         body: ReadableContent = None,
     ) -> 'JSONResponse':
-        while True:
-            kwargs = self._prepare_kwargs(method, url, args, headers, body)
-            kwargs['timeout'] = 0.0
+        kwargs = self._prepare_kwargs(method, url, args, headers, body)
+        kwargs['timeout'] = 0.0
 
-            try:
-                response = await self._request_loop(kwargs)
-            except aiohttp.ClientConnectionError as e:
-                raise NetworkError()
-
+        try:
+            response = await self._request_loop(kwargs)
             return await to_json_response(response)
+        except aiohttp.ClientConnectionError as e:
+            raise NetworkError()
+
+        assert False, 'never reach here'
 
     async def download(self,
         method: Text,
