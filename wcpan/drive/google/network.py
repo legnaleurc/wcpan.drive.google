@@ -31,22 +31,11 @@ class Network(object):
         self._raii = None
 
     async def __aenter__(self) -> 'Network':
-        oauth2_info = await self._settings.load_oauth2_info()
-
         async with cl.AsyncExitStack() as stack:
             self._session = await stack.enter_async_context(
                 aiohttp.ClientSession())
             self._oauth = await stack.enter_async_context(
-                CommandLineGoogleDriveOAuth2(
-                    self._session,
-                    oauth2_info['client_id'],
-                    oauth2_info['client_secret'],
-                    oauth2_info['redirect_uri'],
-                    oauth2_info['access_token'],
-                    oauth2_info['refresh_token'],
-                ))
-            await self._settings.save_oauth2_info(self._oauth.access_token,
-                                                  self._oauth.refresh_token)
+                OAuth2Manager(self._session, self._settings))
             self._raii = stack.pop_all()
 
         return self
@@ -66,7 +55,8 @@ class Network(object):
         body: ReadableContent = None,
     ) -> 'JSONResponse':
         while True:
-            kwargs = self._prepare_kwargs(method, url, args, headers, body)
+            kwargs = await self._prepare_kwargs(method, url, args, headers,
+                                                body)
 
             try:
                 response = await self._request_loop(kwargs)
@@ -87,7 +77,7 @@ class Network(object):
         headers: Dict[Text, Text] = None,
         body: ReadableContent = None,
     ) -> 'JSONResponse':
-        kwargs = self._prepare_kwargs(method, url, args, headers, body)
+        kwargs = await self._prepare_kwargs(method, url, args, headers, body)
         kwargs['timeout'] = 0.0
 
         try:
@@ -106,7 +96,8 @@ class Network(object):
         body: ReadableContent = None,
     ) -> 'StreamResponse':
         while True:
-            kwargs = self._prepare_kwargs(method, url, args, headers, body)
+            kwargs = await self._prepare_kwargs(method, url, args, headers,
+                                                body)
             kwargs['timeout'] = 0.0
 
             try:
@@ -133,8 +124,8 @@ class Network(object):
             if rv == Status.OK:
                 return response
             if rv == Status.REFRESH:
-                await self._renew_token()
-                self._update_token_header(kwargs['headers'])
+                await self._oauth.renew_token()
+                await self._update_token_header(kwargs['headers'])
                 continue
             if rv == Status.BACKOFF:
                 continue
@@ -142,7 +133,7 @@ class Network(object):
             json_ = await response.json()
             raise ResponseError(status, response, json_)
 
-    def _prepare_kwargs(self,
+    async def _prepare_kwargs(self,
         method: Text,
         url: Text,
         args: Optional[Dict[Text, Any]],
@@ -152,7 +143,7 @@ class Network(object):
         kwargs = {
             'method': method,
             'url': url,
-            'headers': self._prepare_headers(headers),
+            'headers': await self._prepare_headers(headers),
         }
         if args is not None:
             kwargs['params'] = list(normalize_query_string(args))
@@ -160,7 +151,7 @@ class Network(object):
             kwargs['data'] = body if not callable(body) else body()
         return kwargs
 
-    def _prepare_headers(self,
+    async def _prepare_headers(self,
         headers: Optional[Dict[Text, Text]],
     ) -> Dict[Text, Text]:
         if headers is None:
@@ -168,11 +159,12 @@ class Network(object):
         else:
             h = {k: v if isinstance(v, (bytes, str)) or v is None else str(v)
                  for k, v in headers.items()}
-        self._update_token_header(h)
+        await self._update_token_header(h)
         return h
 
-    def _update_token_header(self, headers: Dict[Text, Text]) -> None:
-        headers['Authorization'] = f'Bearer {self._oauth.access_token}'
+    async def _update_token_header(self, headers: Dict[Text, Text]) -> None:
+        token = await self._oauth.get_access_token()
+        headers['Authorization'] = f'Bearer {token}'
 
     async def _check_status(self,
         status: Text,
@@ -210,11 +202,6 @@ class Network(object):
         s_delay = min(100, s_delay)
         DEBUG('wcpan.drive.google') << 'backoff for' << s_delay
         await asyncio.sleep(s_delay)
-
-    async def _renew_token(self) -> None:
-        await self._oauth.refresh()
-        await self._settings.save_oauth2_info(self._oauth.access_token,
-                                              self._oauth.refresh_token)
 
 
 class Request(object):
@@ -316,6 +303,81 @@ class ResponseError(GoogleDriveError):
 
 class NetworkError(GoogleDriveError):
     pass
+
+
+class OAuth2Manager(object):
+
+    def __init__(self,
+        session: aiohttp.ClientSession,
+        settings: Settings,
+    ) -> None:
+        self._session = session
+        self._settings = settings
+        self._lock = asyncio.Condition()
+        self._refreshing = False
+        self._error = False
+        self._oauth = None
+        self._raii = None
+
+    async def __aenter__(self) -> 'OAuth2Manager':
+        oauth2_info = await self._settings.load_oauth2_info()
+
+        async with cl.AsyncExitStack() as stack:
+            self._oauth = await stack.enter_async_context(
+                CommandLineGoogleDriveOAuth2(
+                    self._session,
+                    oauth2_info['client_id'],
+                    oauth2_info['client_secret'],
+                    oauth2_info['redirect_uri'],
+                    oauth2_info['access_token'],
+                    oauth2_info['refresh_token'],
+                ))
+            await self._settings.save_oauth2_info(self._oauth.access_token,
+                                                  self._oauth.refresh_token)
+            self._raii = stack.pop_all()
+
+        return self
+
+    async def __aexit__(self, type_, exc, tb) -> bool:
+        await self._raii.aclose()
+        self._raii = None
+        self._oauth = None
+        self._error = False
+        self._refreshing = False
+
+    async def get_access_token(self) -> Text:
+        if self._refreshing:
+            async with self._lock:
+                await self._lock.wait()
+        if self._error:
+            raise AuthenticationError()
+        return self._oauth.access_token
+
+    async def renew_token(self):
+        assert not self._refreshing, 'already renewing'
+
+        async with self._guard():
+            try:
+                await self._oauth.refresh()
+                await self._settings.save_oauth2_info(self._oauth.access_token,
+                                                      self._oauth.refresh_token)
+            except Exception as e:
+                EXCEPTION('wcpan.drive.google', e) << 'error on refresh token'
+                self._error = True
+                raise
+            self._error = False
+
+        DEBUG('wcpan.drive.google') << 'refresh access token'
+
+    @cl.asynccontextmanager
+    async def _guard(self):
+        self._refreshing = True
+        try:
+            yield
+        finally:
+            self._refreshing = False
+            async with self._lock:
+                self._lock.notify_all()
 
 
 class CommandLineGoogleDriveOAuth2(object):
