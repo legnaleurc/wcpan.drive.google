@@ -452,7 +452,8 @@ class Drive(object):
             raise UploadError('invalid upload status')
         rv = rv.get_header('Range')
         if not rv:
-            raise UploadError('invalid upload status')
+            # No data uploaded yet.
+            return False, 0
         rv = re.match(r'bytes=(\d+)-(\d+)', rv)
         if not rv:
             raise UploadError('invalid upload status')
