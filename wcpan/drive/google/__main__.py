@@ -14,7 +14,7 @@ import yaml
 import wcpan.logger as wl
 import wcpan.worker as ww
 
-from .drive import Drive, DownloadError
+from .drive import Drive, DownloadError, download_to_local
 from .util import stream_md5sum, get_default_conf_path
 
 
@@ -197,8 +197,8 @@ class DownloadQueue(AbstractQueue):
         return await self.drive.get_children(node)
 
     async def do_file(self, node, local_path):
-        rv = await self.drive.download_file(node, local_path)
-        return rv
+        local_path = await download_to_local(self.drive, node, local_path)
+        return local_path
 
     def get_source_hash(self, node):
         return node.id_
