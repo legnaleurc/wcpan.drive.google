@@ -129,60 +129,19 @@ class Drive(object):
     async def find_orphan_nodes(self) -> List[Node]:
         return await self._db.find_orphan_nodes()
 
-    async def download_file_by_id(self, node_id: Text, path: Text) -> bool:
+    async def download_by_id(self, node_id: Text) -> 'ReadableFile':
         node = await self.get_node_by_id(node_id)
-        return await self.download_file(node, path)
+        return await self.download(node)
 
-    async def download_file(self, node: Node, path: Text) -> bool:
+    async def download(self, node: Node) -> 'ReadableFile':
         # sanity check
         if not node:
             raise ValueError('node is none')
         if node.is_folder:
             raise ValueError('node should be a file')
-        if not op.isdir(path):
-            raise ValueError('{0} does not exist'.format(path))
 
-        # check if exists
-        complete_path = op.join(path, node.name)
-        if op.isfile(complete_path):
-            return True
-
-        # exists but not a file
-        if op.exists(complete_path):
-            msg = '{0} exists but is not a file'.format(complete_path)
-            raise DownloadError(msg)
-
-        # if the file is empty, no need to download
-        if node.size <= 0:
-            open(complete_path, 'w').close()
-            return True
-
-        # resume download
-        tmp_path = complete_path + '.__tmp__'
-        if op.isfile(tmp_path):
-            offset = op.getsize(tmp_path)
-            if offset > node.size:
-                msg = ('local file size of `{0}` is greater then remote ({1} > {2})'
-                       .format(complete_path, offset, node.size))
-                raise DownloadError(msg)
-        elif op.exists(tmp_path):
-            msg = '{0} exists but is not a file'.format(complete_path)
-            raise DownloadError(msg)
-        else:
-            offset = 0
-        range_ = (offset, node.size)
-
-        with open(tmp_path, 'ab') as fout:
-            api = self._client.files
-            async with await api.download(file_id=node.id_,
-                                          range_=range_) as rv:
-                async for chunk in rv.chunks():
-                    fout.write(chunk)
-
-        # rename it back if completed
-        os.rename(tmp_path, complete_path)
-
-        return True
+        rf = ReadableFile(self._client.files.download, node)
+        return rf
 
     async def create_folder(self,
         parent_node: Node,
@@ -476,6 +435,52 @@ class Drive(object):
         return rv
 
 
+class ReadableFile(object):
+
+    def __init__(self, download: Any, node: Node) -> None:
+        self._download = download
+        self._node = node
+        self._offset = 0
+        self._response = None
+        self._rsps = None
+
+    async def __aenter__(self) -> 'ReadableFile':
+        return self
+
+    async def __aexit__(self, type_, exc, tb) -> bool:
+        await self._close_response()
+
+    async def __aiter__(self) -> bytes:
+        async for chunk in self._response.chunks():
+            yield chunk
+
+    async def read(self, length: int) -> bytes:
+        await self._open_response()
+        return await self._response.read(length)
+
+    async def seek(self, offset: int) -> None:
+        self._offset = offset
+        await self._close_response()
+        await self._open_response()
+
+    async def _download_from_offset(self) -> 'aiohttp.StreamResponse':
+        return await self._download(file_id=self._node.id_,
+                                    range_=(self._offset, self._node.size))
+
+    async def _open_response(self) -> None:
+        if not self._response:
+            async with cl.AsyncExitStack() as stack:
+                self._response = await stack.enter_async_context(
+                    await self._download_from_offset())
+                self._rsps = stack.pop_all()
+
+    async def _close_response(self) -> None:
+        if self._response:
+            await self._rsps.aclose()
+            self._response = None
+            self._rsps = None
+
+
 class DownloadError(GoogleDriveError):
 
     def __init__(self, message: Text) -> None:
@@ -510,6 +515,67 @@ class InvalidNameError(GoogleDriveError):
 
     def __str__(self) -> Text:
         return 'invalid name: ' + self._name
+
+
+async def download_to_local_by_id(
+    drive: Drive,
+    node_id: Text,
+    path: Text,
+) -> Text:
+    node = await drive.get_node_by_id(node_id)
+    return await download_to_local(drive, node, path)
+
+
+async def download_to_local(drive: Drive, node: Node, path: Text) -> Text:
+    if not op.isdir(path):
+        raise ValueError(f'{path} does not exist')
+
+    # check if exists
+    complete_path = op.join(path, node.name)
+    if op.isfile(complete_path):
+        return complete_path
+
+    # exists but not a file
+    if op.exists(complete_path):
+        raise DownloadError(f'{complete_path} exists but is not a file')
+
+    # if the file is empty, no need to download
+    if node.size <= 0:
+        open(complete_path, 'w').close()
+        return complete_path
+
+    # resume download
+    tmp_path = complete_path + '.__tmp__'
+    if op.isfile(tmp_path):
+        offset = op.getsize(tmp_path)
+        if offset > node.size:
+            raise DownloadError(
+                f'local file size of `{complete_path}` is greater then remote'
+                f' ({offset} > {node.size})')
+    elif op.exists(tmp_path):
+        raise DownloadError(f'{complete_path} exists but is not a file')
+    else:
+        offset = 0
+
+    if offset < node.size:
+        async with await drive.download(node) as fin:
+            await fin.seek(offset)
+            with open(tmp_path, 'ab') as fout:
+                while True:
+                    try:
+                        async for chunk in fin:
+                            fout.write(chunk)
+                        break
+                    except NetworkError as e:
+                        EXCEPTION('wcpan.drive.google', e) << 'download'
+
+                    offset = fout.tell()
+                    await fin.seek(offset)
+
+    # rename it back if completed
+    os.rename(tmp_path, complete_path)
+
+    return complete_path
 
 
 async def file_producer(
