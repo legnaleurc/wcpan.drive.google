@@ -21,12 +21,27 @@ from .util import stream_md5sum, get_default_conf_path
 class AbstractQueue(object):
 
     def __init__(self, drive, jobs):
+        self._loop = asyncio.get_event_loop()
         self._drive = drive
         self._queue = ww.AsyncQueue(jobs)
+        self._pool = None
         self._counter = 0
         self._table = {}
         self._total = 0
         self._failed = []
+        self._raii = None
+
+    async def __aenter__(self):
+        async with cl.AsyncExitStack() as stack:
+            self._pool = stack.enter_context(cf.ProcessPoolExecutor())
+            self._raii = stack.pop_all()
+        return self
+
+    async def __aexit__(self, type_, exc, tb):
+        await self._queue.shutdown()
+        await self._raii.aclose()
+        self._pool = None
+        self._raii = None
 
     @property
     def drive(self):
@@ -48,7 +63,6 @@ class AbstractQueue(object):
             fn = ft.partial(self._run_one_task, src, dst)
             self._queue.post(fn)
         await self._queue.join()
-        await self._queue.shutdown()
 
     async def count_tasks(self, src):
         raise NotImplementedError()
@@ -135,6 +149,9 @@ class AbstractQueue(object):
         self._counter += 1
         self._table[key] = self._counter
 
+    async def _get_md5sum(self, local_path):
+        return await self._loop.run_in_executor(self._pool, md5sum, local_path)
+
 
 class UploadQueue(AbstractQueue):
 
@@ -164,6 +181,9 @@ class UploadQueue(AbstractQueue):
     async def do_file(self, local_path, parent_node):
         node = await upload_from_local(self.drive, parent_node, local_path,
                                        exist_ok=True)
+        local_md5 = await self._get_md5sum(local_path)
+        if local_md5 != node.md5:
+            raise Exception(f'{local_path} md5 mismatch')
         return node
 
     def get_source_hash(self, local_path):
@@ -198,6 +218,9 @@ class DownloadQueue(AbstractQueue):
 
     async def do_file(self, node, local_path):
         local_path = await download_to_local(self.drive, node, local_path)
+        local_md5 = await self._get_md5sum(local_path)
+        if local_md5 != node.md5:
+            raise Exception(f'{local_path} md5 mismatch')
         return local_path
 
     def get_source_hash(self, node):
@@ -452,8 +475,8 @@ async def action_download(drive, args):
     node_list = await asyncio.gather(*node_list)
     node_list = [_ for _ in node_list if not _.trashed]
 
-    queue_ = DownloadQueue(drive, args.jobs)
-    await queue_.run(node_list, args.destination)
+    async with DownloadQueue(drive, args.jobs) as queue_:
+        await queue_.run(node_list, args.destination)
 
     if not queue_.failed:
         return 0
@@ -465,8 +488,8 @@ async def action_download(drive, args):
 async def action_upload(drive, args):
     node = await get_node_by_id_or_path(drive, args.id_or_path)
 
-    queue_ = UploadQueue(drive, args.jobs)
-    await queue_.run(args.source, node)
+    async with UploadQueue(drive, args.jobs) as queue_:
+        await queue_.run(args.source, node)
 
     if not queue_.failed:
         return 0
