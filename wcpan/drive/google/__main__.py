@@ -14,20 +14,34 @@ import yaml
 import wcpan.logger as wl
 import wcpan.worker as ww
 
-from .drive import Drive, DownloadError
+from .drive import Drive, DownloadError, download_to_local, upload_from_local
 from .util import stream_md5sum, get_default_conf_path
-from .network import NetworkError
 
 
 class AbstractQueue(object):
 
     def __init__(self, drive, jobs):
+        self._loop = asyncio.get_event_loop()
         self._drive = drive
         self._queue = ww.AsyncQueue(jobs)
+        self._pool = None
         self._counter = 0
         self._table = {}
         self._total = 0
         self._failed = []
+        self._raii = None
+
+    async def __aenter__(self):
+        async with cl.AsyncExitStack() as stack:
+            self._pool = stack.enter_context(cf.ProcessPoolExecutor())
+            self._raii = stack.pop_all()
+        return self
+
+    async def __aexit__(self, type_, exc, tb):
+        await self._queue.shutdown()
+        await self._raii.aclose()
+        self._pool = None
+        self._raii = None
 
     @property
     def drive(self):
@@ -49,7 +63,6 @@ class AbstractQueue(object):
             fn = ft.partial(self._run_one_task, src, dst)
             self._queue.post(fn)
         await self._queue.join()
-        await self._queue.shutdown()
 
     async def count_tasks(self, src):
         raise NotImplementedError()
@@ -85,6 +98,7 @@ class AbstractQueue(object):
         try:
             rv = await self.do_folder(src, dst)
         except Exception as e:
+            wl.EXCEPTION('wcpan.drive.google', e)
             display = await self.get_source_display(src)
             self._add_failed(display)
             rv = None
@@ -103,6 +117,7 @@ class AbstractQueue(object):
         try:
             rv = await self.do_file(src, dst)
         except Exception as e:
+            wl.EXCEPTION('wcpan.drive.google', e)
             display = await self.get_source_display(src)
             self._add_failed(display)
             rv = None
@@ -134,6 +149,9 @@ class AbstractQueue(object):
         self._counter += 1
         self._table[key] = self._counter
 
+    async def _get_md5sum(self, local_path):
+        return await self._loop.run_in_executor(self._pool, md5sum, local_path)
+
 
 class UploadQueue(AbstractQueue):
 
@@ -151,15 +169,8 @@ class UploadQueue(AbstractQueue):
 
     async def do_folder(self, local_path, parent_node):
         folder_name = op.basename(local_path)
-        while True:
-            try:
-                node = await self.drive.create_folder(parent_node, folder_name,
-                                                      exist_ok=True)
-                break
-            except NetworkError as e:
-                wl.EXCEPTION('wcpan.drive.google', e)
-                if e.fatal:
-                    raise
+        node = await self.drive.create_folder(parent_node, folder_name,
+                                              exist_ok=True)
         return node
 
     async def get_children(self, local_path):
@@ -168,15 +179,11 @@ class UploadQueue(AbstractQueue):
         return rv
 
     async def do_file(self, local_path, parent_node):
-        while True:
-            try:
-                node = await self.drive.upload_file(local_path, parent_node,
-                                                    exist_ok=True)
-                break
-            except NetworkError as e:
-                wl.EXCEPTION('wcpan.drive.google', e)
-                if e.fatal:
-                    raise
+        node = await upload_from_local(self.drive, parent_node, local_path,
+                                       exist_ok=True)
+        local_md5 = await self._get_md5sum(local_path)
+        if local_md5 != node.md5:
+            raise Exception(f'{local_path} md5 mismatch')
         return node
 
     def get_source_hash(self, local_path):
@@ -203,29 +210,18 @@ class DownloadQueue(AbstractQueue):
 
     async def do_folder(self, node, local_path):
         full_path = op.join(local_path, node.name)
-        try:
-            os.makedirs(full_path, exist_ok=True)
-        except Exception as e:
-            wl.EXCEPTION('wcpan.drive.google', e)
-            raise
+        os.makedirs(full_path, exist_ok=True)
         return full_path
 
     async def get_children(self, node):
         return await self.drive.get_children(node)
 
     async def do_file(self, node, local_path):
-        while True:
-            try:
-                rv = await self.drive.download_file(node, local_path)
-                break
-            except DownloadError as e:
-                wl.EXCEPTION('wcpan.drive.google', e)
-                raise
-            except NetworkError as e:
-                wl.EXCEPTION('wcpan.drive.google', e)
-                if e.fatal:
-                    raise
-        return rv
+        local_path = await download_to_local(self.drive, node, local_path)
+        local_md5 = await self._get_md5sum(local_path)
+        if local_md5 != node.md5:
+            raise Exception(f'{local_path} md5 mismatch')
+        return local_path
 
     def get_source_hash(self, node):
         return node.id_
@@ -479,8 +475,8 @@ async def action_download(drive, args):
     node_list = await asyncio.gather(*node_list)
     node_list = [_ for _ in node_list if not _.trashed]
 
-    queue_ = DownloadQueue(drive, args.jobs)
-    await queue_.run(node_list, args.destination)
+    async with DownloadQueue(drive, args.jobs) as queue_:
+        await queue_.run(node_list, args.destination)
 
     if not queue_.failed:
         return 0
@@ -492,8 +488,8 @@ async def action_download(drive, args):
 async def action_upload(drive, args):
     node = await get_node_by_id_or_path(drive, args.id_or_path)
 
-    queue_ = UploadQueue(drive, args.jobs)
-    await queue_.run(args.source, node)
+    async with UploadQueue(drive, args.jobs) as queue_:
+        await queue_.run(args.source, node)
 
     if not queue_.failed:
         return 0
