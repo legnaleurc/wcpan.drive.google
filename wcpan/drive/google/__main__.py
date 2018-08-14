@@ -14,7 +14,7 @@ import yaml
 import wcpan.logger as wl
 import wcpan.worker as ww
 
-from .drive import Drive, DownloadError, download_to_local
+from .drive import Drive, DownloadError, download_to_local, upload_from_local
 from .util import stream_md5sum, get_default_conf_path
 
 
@@ -162,8 +162,8 @@ class UploadQueue(AbstractQueue):
         return rv
 
     async def do_file(self, local_path, parent_node):
-        node = await self.drive.upload_file(local_path, parent_node,
-                                            exist_ok=True)
+        node = await upload_from_local(self.drive, parent_node, local_path,
+                                       exist_ok=True)
         return node
 
     def get_source_hash(self, local_path):
