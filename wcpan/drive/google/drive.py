@@ -1,6 +1,6 @@
+import asyncio
 import contextlib as cl
 import functools as ft
-import hashlib as hl
 import mimetypes
 import os
 import os.path as op
@@ -8,7 +8,7 @@ import re
 from typing import (Any, AsyncGenerator, Awaitable, Dict, List, Optional, Text,
                     Tuple, Union)
 
-from wcpan.logger import INFO, WARNING, DEBUG
+from wcpan.logger import INFO, WARNING, DEBUG, EXCEPTION
 
 from .api import Client
 from .cache import Cache, Node
@@ -19,7 +19,6 @@ from .util import (Settings, GoogleDriveError, stream_md5sum, FOLDER_MIME_TYPE,
 
 FILE_FIELDS = 'id,name,mimeType,trashed,parents,createdTime,modifiedTime,md5Checksum,size'
 CHANGE_FIELDS = 'nextPageToken,newStartPageToken,changes(fileId,removed,file({0}))'.format(FILE_FIELDS)
-EMPTY_MD5SUM = 'd41d8cd98f00b204e9800998ecf8427e'
 
 
 class Drive(object):
@@ -172,56 +171,43 @@ class Drive(object):
 
         return node
 
-    async def upload_file(self,
-        file_path: Text,
+    async def upload_by_id(self,
+        parent_id: Text,
+        file_name: Text,
+        file_size: int = None,
+        mime_type: Text = None,
+    ) -> 'WritableFile':
+        node = await self.get_node_by_id(parent_id)
+        return await self.upload(node, file_name, file_size, mime_type)
+
+    async def upload(self,
         parent_node: Node,
-        exist_ok: bool = False,
-    ) -> Node:
+        file_name: Text,
+        file_size: int = None,
+        mime_type: Text = None,
+    ) -> 'WritableFile':
         # sanity check
         if not parent_node:
             raise UploadError('invalid parent node')
         if not parent_node.is_folder:
             raise UploadError('invalid parent node')
-        if not op.isfile(file_path):
-            raise UploadError('invalid file path')
-
-        api = self._client.files
-        file_name = op.basename(file_path)
 
         # do not upload if remote exists a same file
         node = await self.fetch_node_by_name_from_parent_id(file_name,
                                                             parent_node.id_)
         if node:
-            if exist_ok:
-                INFO('wcpan.drive.google') << 'skipped (existing)' << file_path
-                return node
-            else:
-                raise FileConflictedError(node)
+            raise FileConflictedError(node)
 
-        total_file_size = op.getsize(file_path)
-        mt, e = mimetypes.guess_type(file_path)
-        if total_file_size <= 0:
-            rv = await api.create_empty_file(file_name=file_name,
-                                             parent_id=parent_node.id_,
-                                             mime_type=mt)
-            local_md5 = EMPTY_MD5SUM
-        else:
-            args = {
-                'file_path': file_path,
-                'file_name': file_name,
-                'total_file_size': total_file_size,
-                'parent_id': parent_node.id_,
-                'mime_type': mt,
-            }
-            rv, local_md5 = await self._inner_upload_file(**args)
-
-        rv = rv.json
-        node = await self.fetch_node_by_id(rv['id'])
-
-        if node.md5 != local_md5:
-            raise UploadError('md5 mismatch')
-
-        return node
+        api = self._client.files
+        wf = WritableFile(initiate=api.initiate_uploading,
+                          upload=api.upload,
+                          get_status=api.get_upload_status,
+                          touch=api.create_empty_file,
+                          parent_id=parent_node.id_,
+                          name=file_name,
+                          size=file_size,
+                          mime_type=mime_type)
+        return wf
 
     async def fetch_node_by_name_from_parent_id(self,
         name: Text,
@@ -326,94 +312,6 @@ class Drive(object):
             # just move to this folder
             return dst_node, None
 
-    async def _inner_upload_file(self,
-        file_path: Text,
-        file_name: Text,
-        total_file_size: int,
-        parent_id: Text,
-        mime_type: Text,
-    ) -> Tuple[Response, Text]:
-        api = self._client.files
-
-        rv = await api.initiate_uploading(file_name=file_name,
-                                          total_file_size=total_file_size,
-                                          parent_id=parent_id,
-                                          mime_type=mime_type)
-
-        url = rv.get_header('Location')
-
-        with open(file_path, 'rb') as fin:
-            hasher = hl.md5()
-            reader = ft.partial(file_producer, fin, hasher)
-            uploader = ft.partial(self._inner_try_upload_file,
-                                  url=url, producer=reader,
-                                  total_file_size=total_file_size,
-                                  mime_type=mime_type)
-
-            retried = False
-            offset = 0
-            while True:
-                ok, rv = await uploader(offset=offset)
-                if ok:
-                    break
-                offset = rv
-                fin.seek(offset, os.SEEK_SET)
-                retried = True
-
-            if retried:
-                fin.seek(0, os.SEEK_SET)
-                local_md5 = stream_md5sum(fin)
-            else:
-                local_md5 = hasher.hexdigest()
-
-        return rv, local_md5
-
-    async def _inner_try_upload_file(self,
-        url: Text,
-        producer: ContentProducer,
-        offset: int,
-        total_file_size: int,
-        mime_type: Text,
-    ) -> Tuple[bool, Union[Response, int]]:
-        api = self._client.files
-
-        try:
-            rv = await api.upload(url, producer=producer, offset=offset,
-                                  total_file_size=total_file_size,
-                                  mime_type=mime_type)
-            return True, rv
-        except NetworkError as e:
-            pass
-        except ResponseError as e:
-            if e.status == '404':
-                raise UploadError('the upload session has been expired')
-
-        try:
-            rv = await api.get_upload_status(url, total_file_size)
-        except ResponseError as e:
-            if e.status == '410':
-                # This means the temporary URL has been cleaned up by Google
-                # Drive, so the client has to start over again.
-                msg = (
-                    'the uploaded resource is gone, '
-                    'code: "{0}", reason: "{1}".'
-                ).format(e.json['code'], e.json['message'])
-                raise UploadError(msg)
-            raise
-
-        if rv.status != '308':
-            raise UploadError('invalid upload status')
-        rv = rv.get_header('Range')
-        if not rv:
-            # No data uploaded yet.
-            return False, 0
-        rv = re.match(r'bytes=(\d+)-(\d+)', rv)
-        if not rv:
-            raise UploadError('invalid upload status')
-        rv = int(rv.group(2))
-
-        return False, rv
-
     async def _inner_rename_node(self,
         node: Node,
         new_parent: Optional[Node],
@@ -481,6 +379,158 @@ class ReadableFile(object):
             self._rsps = None
 
 
+class WritableFile(object):
+
+    def __init__(self,
+        initiate: Any,
+        upload: Any,
+        get_status: Any,
+        touch: Any,
+        parent_id: Text,
+        name: Text,
+        size: int = None,
+        mime_type: Text = None,
+    ) -> None:
+        self._loop = asyncio.get_event_loop()
+        self._initiate = initiate
+        self._upload = upload
+        self._get_status = get_status
+        self._touch = touch
+        self._parent_id = parent_id
+        self._name = name
+        self._size = size
+        self._mime_type = mime_type
+        self._url = None
+        self._offset = None
+        self._queue = asyncio.Queue(maxsize=1)
+        self._bg = None
+        self._rv = None
+
+    async def __aenter__(self) -> 'WritableFile':
+        if self._size > 0:
+            self._url = await self._get_session_url()
+            self._bg = None
+        else:
+            self._url = None
+            self._bg = self._touch_empty()
+        self._offset = 0
+        self._queue = asyncio.Queue(maxsize=1)
+        self._rv = None
+
+        return self
+
+    async def __aexit__(self, type_, exc, tb) -> bool:
+        rv = await self._bg
+        self._rv = rv.json
+        self._bg = None
+        self._queue = None
+        self._offset = None
+        self._url = None
+
+    async def tell(self) -> int:
+        return await self._get_offset()
+
+    async def seek(self, offset: int) -> None:
+        self._offset = offset
+        await self._close_request()
+        await self._open_request()
+
+    async def write(self, chunk: bytes) -> int:
+        await self._open_request()
+        feed = self._queue.put(chunk)
+        await asyncio.wait([feed, self._bg],
+                           return_when=asyncio.FIRST_COMPLETED)
+        return len(chunk)
+
+    @property
+    def id_(self) -> Text:
+        return self._rv['id']
+
+    async def _close_request(self) -> None:
+        if not self._bg:
+            return None
+        if not self._bg.done():
+            self._bg.cancel()
+        try:
+            rv = await self._bg
+            return rv
+        except (Exception, asyncio.CancelledError) as e:
+            EXCEPTION('wcpan.drive.google', e) << 'close'
+        finally:
+            self._queue = asyncio.Queue(maxsize=1)
+            self._bg = None
+
+    async def _open_request(self) -> None:
+        if self._bg:
+            return
+        f = self._upload_to()
+        self._bg = self._loop.create_task(f)
+
+    async def _produce(self) -> AsyncGenerator[bytes, None]:
+        while True:
+            async with self._get_one_chunk() as chunk:
+                if not chunk:
+                    break
+                yield chunk
+
+    @cl.asynccontextmanager
+    async def _get_one_chunk(self) -> AsyncGenerator[bytes, None]:
+        chunk = await self._queue.get()
+        try:
+            yield chunk
+        finally:
+            self._queue.task_done()
+
+    async def _get_session_url(self) -> Text:
+        rv = await self._initiate(file_name=self._name,
+                                  total_file_size=self._size,
+                                  parent_id=self._parent_id,
+                                  mime_type=self._mime_type)
+        url = rv.get_header('Location')
+        return url
+
+    async def _upload_to(self) -> 'aiohttp.ClientResponse':
+        try:
+            rv = await self._upload(self._url, producer=self._produce,
+                                    offset=self._offset,
+                                    total_file_size=self._size,
+                                    mime_type=self._mime_type)
+        except ResponseError as e:
+            if e.status == '404':
+                raise UploadError('the upload session has been expired')
+            raise
+        return rv
+
+    async def _get_offset(self) -> int:
+        try:
+            rv = await self._get_status(self._url, self._size)
+        except ResponseError as e:
+            if e.status == '410':
+                # This means the temporary URL has been cleaned up by Google
+                # Drive, so the client has to start over again.
+                raise UploadError('the upload session has been expired')
+            raise
+
+        if rv.status != '308':
+            raise UploadError(f'invalid upload status: {rv.status}')
+        
+        try:
+            rv = rv.get_header('Range')
+        except KeyError:
+            # no data yet
+            return 0
+
+        rv = re.match(r'bytes=0-(\d+)', rv)
+        if not rv:
+            raise UploadError('invalid upload range')
+        rv = int(rv.group(1))
+        return rv
+
+    async def _touch_empty(self) -> 'aiohttp.ClientResponse':
+        rv = await self._touch(self._name, self._parent_id, self._mime_type)
+        return rv
+
+
 class DownloadError(GoogleDriveError):
 
     def __init__(self, message: Text) -> None:
@@ -506,6 +556,10 @@ class FileConflictedError(GoogleDriveError):
 
     def __str__(self) -> Text:
         return 'remote file already exists: ' + self._node.name
+
+    @property
+    def node(self) -> Node:
+        return self._node
 
 
 class InvalidNameError(GoogleDriveError):
@@ -578,16 +632,69 @@ async def download_to_local(drive: Drive, node: Node, path: Text) -> Text:
     return complete_path
 
 
-async def file_producer(
-    fin: 'file',
-    hasher: 'hashlib.hash',
-) -> AsyncGenerator[bytes, None]:
+async def upload_from_local_by_id(
+    drive: Drive,
+    parent_id: Text,
+    file_path: Text,
+    exist_ok: bool = False,
+) -> Node:
+    node = await drive.get_node_by_id(parent_id)
+    return await upload_from_local(drive, node, file_path, exist_ok)
+
+
+async def upload_from_local(
+    drive: Drive,
+    parent_node: Node,
+    file_path: Text,
+    exist_ok: bool = False
+) -> Node:
+    # sanity check
+    if not op.isfile(file_path):
+        raise UploadError('invalid file path')
+
+    file_name = op.basename(file_path)
+    total_file_size = op.getsize(file_path)
+    mt, _ = mimetypes.guess_type(file_path)
+
+    try:
+        fout = await drive.upload(parent_node=parent_node,
+                                  file_name=file_name,
+                                  file_size=total_file_size,
+                                  mime_type=mt)
+    except FileConflictedError as e:
+        if not exist_ok:
+            raise
+        return e.node
+
+    async with fout:
+        with open(file_path, 'rb') as fin:
+            while True:
+                try:
+                    await upload_feed(fin, fout)
+                    break
+                except UploadError as e:
+                    raise
+                except Exception as e:
+                    EXCEPTION('wcpan.drive.google', e) << 'upload feed'
+
+                await upload_continue(fin, fout)
+
+    node = await drive.fetch_node_by_id(fout.id_)
+    return node
+
+
+async def upload_feed(fin, fout) -> None:
     while True:
         chunk = fin.read(CHUNK_SIZE)
         if not chunk:
             break
-        hasher.update(chunk)
-        yield chunk
+        await fout.write(chunk)
+
+
+async def upload_continue(fin, fout) -> None:
+    offset = await fout.tell()
+    await fout.seek(offset)
+    fin.seek(offset, os.SEEK_SET)
 
 
 async def drive_walk(drive, node):
