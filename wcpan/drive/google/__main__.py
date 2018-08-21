@@ -435,8 +435,10 @@ async def action_help(message):
 
 
 async def action_sync(drive, args):
-    async for _ in drive.sync():
-        pass
+    wl.INFO('wcpan.drive.google') << 'sync begin'
+    async for changes in drive.sync():
+        wl.INFO('wcpan.drive.google') << 'applied' << len(changes) << 'changes'
+    wl.INFO('wcpan.drive.google') << 'sync end'
     return 0
 
 

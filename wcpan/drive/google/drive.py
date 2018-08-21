@@ -44,8 +44,6 @@ class Drive(object):
         self._raii = None
 
     async def sync(self) -> AsyncGenerator[Dict[Text, Any], None]:
-        INFO('wcpan.drive.google') << 'sync begin'
-
         try:
             check_point = await self._db.get_metadata('check_point')
         except KeyError:
@@ -80,11 +78,7 @@ class Drive(object):
             await self._db.apply_changes(changes, check_point)
             changes_list_args['page_token'] = check_point
 
-            INFO('wcpan.drive.google') << 'applied' << len(changes) << 'changes'
-
             yield changes
-
-        INFO('wcpan.drive.google') << 'sync end'
 
     async def get_root_node(self) -> Node:
         return await self._db.get_root_node()
