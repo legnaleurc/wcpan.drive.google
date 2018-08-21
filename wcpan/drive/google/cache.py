@@ -8,7 +8,6 @@ import sqlite3
 from typing import Any, Dict, List, Text, Union
 
 import arrow
-from wcpan.logger import EXCEPTION
 
 from . import util as u
 
@@ -56,11 +55,11 @@ SQL_CREATE_TABLES = [
     'CREATE INDEX ix_nodes_created ON nodes(created);',
     'CREATE INDEX ix_nodes_modified ON nodes(modified);',
     'CREATE INDEX ix_files_mime_type ON files(mime_type);',
-    'PRAGMA user_version = 2;',
+    'PRAGMA user_version = 3;',
 ]
 
 
-CURRENT_SCHEMA_VERSION = 2
+CURRENT_SCHEMA_VERSION = 3
 
 
 class CacheError(u.GoogleDriveError):
@@ -322,55 +321,13 @@ def initialize(dsn: Text):
         with ReadOnly(db) as query:
             query.execute('PRAGMA user_version;')
             rv = query.fetchone()
-        version = rv[0]
+        version = int(rv[0])
 
-        if CURRENT_SCHEMA_VERSION > version:
-            migrate(db, version)
-
-
-def migrate(db: sqlite3.Connection, version: int) -> None:
-    # version 1 -> 2
-    db.create_function('IS_TRASHED', 1, lambda _: _ == 'TRASH')
-    db.create_function('ISO_TO_INT', 1, lambda _: arrow.get(_).timestamp)
-
-    SQL = [
-        'ALTER TABLE nodes RENAME TO old_nodes;',
-        '''
-        CREATE TABLE nodes (
-            id TEXT NOT NULL,
-            name TEXT,
-            trashed BOOLEAN,
-            created INTEGER,
-            modified INTEGER,
-            PRIMARY KEY (id),
-            UNIQUE (id)
-        );
-        ''',
-        '''
-        INSERT INTO nodes
-            (id, name, trashed, created, modified)
-        SELECT
-            id, name, IS_TRASHED(status), ISO_TO_INT(created),
-            ISO_TO_INT(modified)
-        FROM old_nodes
-        ;''',
-        'DROP TABLE old_nodes;',
-        'CREATE INDEX ix_nodes_trashed ON nodes(trashed);',
-        'CREATE INDEX ix_nodes_created ON nodes(created);',
-        'CREATE INDEX ix_nodes_modified ON nodes(modified);',
-        'PRAGMA user_version = 2;',
-    ]
-
-    try:
-        with ReadWrite(db) as query:
-            for sql in SQL:
-                query.execute(sql)
-        return
-    except Exception as e:
-        EXCEPTION('wcpan.drive.google', e) << 'migration 1 -> 2 failed'
-
-    with ReadWrite(db) as query:
-        query.execute('ALTER TABLE old_nodes RENAME TO nodes;')
+        if version < 3:
+            raise CacheError((
+                'impossible to migrate from old schema prior to'
+                ' version 3, please rebuild the cache'
+            ))
 
 
 def get_metadata(dsn: Text, key: Text) -> Text:
