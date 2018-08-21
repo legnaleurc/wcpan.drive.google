@@ -164,6 +164,7 @@ class Node(object):
         modified: arrow.Arrow,
         parents: List[Text],
         is_folder: bool,
+        mime_type: Text,
         md5: Text,
         size: int,
     ) -> None:
@@ -174,6 +175,7 @@ class Node(object):
         self._modified = modified
         self._parents = parents
         self._is_folder = is_folder
+        self._mime_type = mime_type
         self._md5 = md5
         self._size = size
 
@@ -183,14 +185,6 @@ class Node(object):
     @property
     def is_root(self) -> bool:
         return self._name is None
-
-    @property
-    def is_file(self) -> bool:
-        return not self._is_folder
-
-    @property
-    def is_folder(self) -> bool:
-        return self._is_folder
 
     @property
     def id_(self) -> Text:
@@ -227,6 +221,18 @@ class Node(object):
         return self._parents[0]
 
     @property
+    def is_file(self) -> bool:
+        return not self._is_folder
+
+    @property
+    def is_folder(self) -> bool:
+        return self._is_folder
+
+    @property
+    def mime_type(self) -> Text:
+        return self._mime_type
+
+    @property
     def md5(self) -> Text:
         return self._md5
 
@@ -236,6 +242,7 @@ class Node(object):
 
 
 def node_from_api(data: Dict[Text, Any]) -> Node:
+    is_folder = data['mimeType'] == u.FOLDER_MIME_TYPE
     return Node(
         id_=data['id'],
         name=data['name'],
@@ -243,7 +250,8 @@ def node_from_api(data: Dict[Text, Any]) -> Node:
         created=arrow.get(data['createdTime']),
         modified=arrow.get(data['modifiedTime']),
         parents=data.get('parents', None),
-        is_folder=data['mimeType'] == u.FOLDER_MIME_TYPE,
+        is_folder=is_folder,
+        mime_type=None if is_folder else data['mimeType'],
         md5=data.get('md5Checksum', None),
         size=data.get('size', None),
     )
@@ -258,6 +266,7 @@ def node_from_database(data: Dict[Text, Any]) -> Node:
         modified=arrow.get(data['modified']),
         parents=data.get('parents', None),
         is_folder=data['is_folder'],
+        mime_type=data['mime_type'],
         md5=data['md5'],
         size=data['size'],
     )
@@ -540,7 +549,7 @@ def inner_get_node_by_id(
     node_id: Text,
 ) -> Union['Node', None]:
     query.execute('''
-        SELECT id, name, trashed, created, modified
+        SELECT name, trashed, created, modified
         FROM nodes
         WHERE id=?
     ;''', (node_id,))
@@ -548,15 +557,17 @@ def inner_get_node_by_id(
     if not rv:
         return None
     node = dict(rv)
+    node['id'] = node_id
 
     query.execute('''
-        SELECT id, md5, size
+        SELECT mime_type, md5, size
         FROM files
         WHERE id=?
     ;''', (node_id,))
     rv = query.fetchone()
     is_folder = rv is None
     node['is_folder'] = is_folder
+    node['mime_type'] = None if is_folder else rv['mime_type']
     node['md5'] = None if is_folder else rv['md5']
     node['size'] = None if is_folder else rv['size']
 
@@ -579,17 +590,17 @@ def inner_insert_node(query: sqlite3.Cursor, node: Node) -> None:
         (id, name, trashed, created, modified)
         VALUES
         (?, ?, ?, ?, ?)
-    ;''', (node.id_, node.name, node.trashed, node.created.timestamp,
-           node.modified.timestamp))
+    ;''', (node.id_, node.name, node.trashed,
+           node.created.timestamp, node.modified.timestamp))
 
     # add file information
     if not node.is_folder:
         query.execute('''
             INSERT OR REPLACE INTO files
-            (id, md5, size)
+            (id, mime_type, md5, size)
             VALUES
-            (?, ?, ?)
-        ;''', (node.id_, node.md5, node.size))
+            (?, ?, ?, ?)
+        ;''', (node.id_, node.mime_type, node.md5, node.size))
 
     # add parentage
     if node.parents:
