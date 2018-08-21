@@ -435,7 +435,8 @@ async def action_help(message):
 
 
 async def action_sync(drive, args):
-    await drive.sync()
+    async for _ in drive.sync():
+        pass
     return 0
 
 
