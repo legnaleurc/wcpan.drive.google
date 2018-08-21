@@ -181,7 +181,7 @@ class Files(object):
             args['supportsTeamDrives'] = supports_team_drives
 
         headers = {
-            'Range': 'bytes={0}-{1}'.format(*range_),
+            'Range': f'bytes={range_[0]}-{range_[1]}',
         }
 
         uri = self._root + '/' + file_id
@@ -241,8 +241,7 @@ class Files(object):
         last_position = total_file_size - 1
         headers = {
             'Content-Length': total_file_size - offset,
-            'Content-Range': 'bytes {0}-{1}/{2}'.format(offset, last_position,
-                                                        total_file_size),
+            'Content-Range': f'bytes {offset}-{last_position}/{total_file_size}',
         }
         if mime_type is not None:
             headers['Content-Type'] = mime_type
@@ -263,7 +262,7 @@ class Files(object):
 
         headers = {
             'Content-Length': 0,
-            'Content-Range': 'bytes */{0}'.format(total_file_size),
+            'Content-Range': f'bytes */{total_file_size}',
         }
         rv = await self._network.fetch('PUT', uri, headers=headers)
         return rv

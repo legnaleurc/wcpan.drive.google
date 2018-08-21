@@ -17,7 +17,7 @@ from .util import (Settings, GoogleDriveError, CHUNK_SIZE)
 
 
 FILE_FIELDS = 'id,name,mimeType,trashed,parents,createdTime,modifiedTime,md5Checksum,size'
-CHANGE_FIELDS = 'nextPageToken,newStartPageToken,changes(fileId,removed,file({0}))'.format(FILE_FIELDS)
+CHANGE_FIELDS = f'nextPageToken,newStartPageToken,changes(fileId,removed,file({FILE_FIELDS}))'
 
 
 class Drive(object):
@@ -213,9 +213,8 @@ class Drive(object):
         parent_id: Text,
     ) -> Node:
         safe_name = re.sub(r"[\\']", r"\\\g<0>", name)
-        query = "'{0}' in parents and name = '{1}'".format(parent_id,
-                                                           safe_name)
-        fields = 'files({0})'.format(FILE_FIELDS)
+        query = f"'{parent_id}' in parents and name = '{safe_name}'"
+        fields = f'files({FILE_FIELDS})'
         try:
             rv = await self._client.files.list_(q=query, fields=fields)
         except ResponseError as e:
@@ -295,7 +294,7 @@ class Drive(object):
     async def _get_dst_info(self, dst_path: Text) -> Tuple[Node, Text]:
         if not op.isabs(dst_path):
             if op.basename(dst_path) != dst_path:
-                raise ValueError('invalid path: {0}'.format(dst_path))
+                raise ValueError(f'invalid path: {dst_path}')
             # rename only
             return None, dst_path
         else:

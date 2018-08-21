@@ -218,7 +218,7 @@ class Node(object):
     @property
     def parent_id(self) -> Text:
         if len(self._parents) != 1:
-            msg = 'expected only one parent, got: {0}'.format(self._parents)
+            msg = f'expected only one parent, got: {self._parents}'
             raise DatabaseError(msg)
         return self._parents[0]
 

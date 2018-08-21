@@ -137,12 +137,12 @@ class AbstractQueue(object):
     async def _log(self, begin_or_end, src):
         progress = self._get_progress(src)
         display = await self.get_source_display(src)
-        wl.INFO('wcpan.drive.google') << '{0} {1} {2}'.format(progress, begin_or_end, display)
+        wl.INFO('wcpan.drive.google') << f'{progress} {begin_or_end} {display}'
 
     def _get_progress(self, src):
         key = self.get_source_hash(src)
         id_ = self._table[key]
-        return '[{0}/{1}]'.format(id_, self._total)
+        return f'[{id_}/{self._total}]'
 
     def _update_counter_table(self, src):
         key = self.get_source_hash(src)
@@ -263,10 +263,10 @@ class UploadVerifier(object):
         if not child_node:
             return
         if not child_node.is_folder:
-            wl.ERROR('wcpan.drive.google') << '[NOT_FOLDER] {0}'.format(local_path)
+            wl.ERROR('wcpan.drive.google') << f'[NOT_FOLDER] {local_path}'
             return
 
-        wl.INFO('wcpan.drive.google') << '[OK] {0}'.format(local_path)
+        wl.INFO('wcpan.drive.google') << f'[OK] {local_path}'
 
         children = [self.run(child_path, child_node)
                     for child_path in local_path.iterdir()]
@@ -283,24 +283,24 @@ class UploadVerifier(object):
         if not child_node:
             return
         if not child_node.is_file:
-            wl.ERROR('wcpan.drive.google') << '[NOT_FILE] {0}'.format(local_path)
+            wl.ERROR('wcpan.drive.google') << f'[NOT_FILE] {local_path}'
             return
 
         local_md5 = await self._get_md5sum(local_path)
         if local_md5 != child_node.md5:
-            wl.ERROR('wcpan.drive.google') << '[WRONG_MD5] {0}'.format(local_path)
+            wl.ERROR('wcpan.drive.google') << f'[WRONG_MD5] {local_path}'
             return
 
-        wl.INFO('wcpan.drive.google') << '[OK] {0}'.format(local_path)
+        wl.INFO('wcpan.drive.google') << f'[OK] {local_path}'
 
     async def _get_child_node(self, local_path, name, remote_node):
         child_node = await self._drive.get_node_by_name_from_parent(name,
                                                                     remote_node)
         if not child_node:
-            wl.ERROR('wcpan.drive.google') << '[MISSING] {0}'.format(local_path)
+            wl.ERROR('wcpan.drive.google') << f'[MISSING] {local_path}'
             return None
         if child_node.trashed:
-            wl.ERROR('wcpan.drive.google') << '[TRASHED] {0}'.format(local_path)
+            wl.ERROR('wcpan.drive.google') << f'[TRASHED] {local_path}'
             return None
         return child_node
 
@@ -591,7 +591,7 @@ def print_as_yaml(data):
 def print_id_node_dict(data):
     pairs = sorted(data.items(), key=lambda _: _[1])
     for id_, path in pairs:
-        print('{0}: {1}'.format(id_, path))
+        print(f'{id_}: {path}')
 
 
 main_loop = asyncio.get_event_loop()
