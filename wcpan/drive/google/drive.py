@@ -11,7 +11,7 @@ from typing import (Any, AsyncGenerator, Awaitable, Dict, List, Optional, Text,
 from wcpan.logger import INFO, WARNING, DEBUG, EXCEPTION
 
 from .api import Client
-from .cache import Cache, Node
+from .cache import Cache, Node, node_from_api
 from .network import ContentProducer, ResponseError, Response, NetworkError
 from .util import Settings, GoogleDriveError, CHUNK_SIZE
 
@@ -57,7 +57,7 @@ class Drive(object):
             rv = rv.json
             rv['name'] = None
             rv['parents'] = []
-            node = Node.from_api(rv)
+            node = node_from_api(rv)
             await self._db.insert_node(node)
 
         new_start_page_token = None
@@ -228,13 +228,13 @@ class Drive(object):
         if not files:
             return None
 
-        node = Node.from_api(files[0])
+        node = node_from_api(files[0])
         return node
 
     async def fetch_node_by_id(self, node_id: Text) -> Node:
         rv = await self._client.files.get(node_id, fields=FILE_FIELDS)
         rv = rv.json
-        node = Node.from_api(rv)
+        node = node_from_api(rv)
         return node
 
     async def trash_node_by_id(self, node_id: Text) -> Node:

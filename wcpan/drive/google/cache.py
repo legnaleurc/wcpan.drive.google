@@ -503,7 +503,7 @@ def apply_changes(
             if is_removed:
                 inner_delete_node_by_id(query, change['fileId'])
             else:
-                node = Node.from_api(change['file'])
+                node = node_from_api(change['file'])
                 inner_insert_node(query, node)
 
         inner_set_metadata(query, 'check_point', check_point)
@@ -611,7 +611,7 @@ def inner_get_node_by_id(
     rv = query.fetchall()
     node['parents'] = None if not rv else [_['parent'] for _ in rv]
 
-    node = Node.from_database(node)
+    node = node_from_database(node)
     return node
 
 

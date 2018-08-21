@@ -173,7 +173,7 @@ async def initial_nodes(db):
         'createdTime': get_utc_now().isoformat(),
         'modifiedTime': get_utc_now().isoformat(),
     }
-    node = wdgc.Node.from_api(data)
+    node = wdgc.node_from_api(data)
     await db.insert_node(node)
 
     data = [
