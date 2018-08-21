@@ -13,7 +13,7 @@ from wcpan.logger import INFO, WARNING, DEBUG, EXCEPTION
 from .api import Client
 from .cache import Cache, Node
 from .network import ContentProducer, ResponseError, Response, NetworkError
-from .util import (Settings, GoogleDriveError, CHUNK_SIZE)
+from .util import Settings, GoogleDriveError, CHUNK_SIZE
 
 
 FILE_FIELDS = 'id,name,mimeType,trashed,parents,createdTime,modifiedTime,md5Checksum,size'

@@ -7,7 +7,6 @@ from .util import FOLDER_MIME_TYPE, Settings
 
 
 API_ROOT = 'https://www.googleapis.com/drive/v3'
-EMPTY_STRING = ''
 
 
 class Client(object):
