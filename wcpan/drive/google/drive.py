@@ -43,7 +43,7 @@ class Drive(object):
         self._db = None
         self._raii = None
 
-    async def sync(self) -> bool:
+    async def sync(self) -> AsyncGenerator[Dict[Text, Any], None]:
         INFO('wcpan.drive.google') << 'sync begin'
 
         try:
@@ -82,8 +82,9 @@ class Drive(object):
 
             INFO('wcpan.drive.google') << 'applied' << len(changes) << 'changes'
 
+            yield changes
+
         INFO('wcpan.drive.google') << 'sync end'
-        return True
 
     async def get_root_node(self) -> Node:
         return await self._db.get_root_node()
