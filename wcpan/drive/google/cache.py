@@ -157,20 +157,26 @@ class Cache(object):
 
 class Node(object):
 
-    @staticmethod
-    def from_api(data: Dict[Text, Any]) -> 'Node':
-        node = Node(data)
-        node._initialize_from_api()
-        return node
-
-    @staticmethod
-    def from_database(data: Dict[Text, Any]) -> 'Node':
-        node = Node(data)
-        node._initialize_from_database()
-        return node
-
-    def __init__(self, data: Dict[Text, Any]) -> None:
-        self._data = data
+    def __init__(self,
+        id_: Text,
+        name: Text,
+        trashed: bool,
+        created: arrow.Arrow,
+        modified: arrow.Arrow,
+        parents: List[Text],
+        is_folder: bool,
+        md5: Text,
+        size: int,
+    ) -> None:
+        self._id = id_
+        self._name = name
+        self._trashed = trashed
+        self._created = created
+        self._modified = modified
+        self._parents = parents
+        self._is_folder = is_folder
+        self._md5 = md5
+        self._size = size
 
     def __repr__(self):
         return f"Node(id='{self.id_}')"
@@ -229,31 +235,33 @@ class Node(object):
     def size(self) -> int:
         return self._size
 
-    def _initialize_from_api(self) -> None:
-        data = self._data
-        self._id = data['id']
-        self._name = data['name']
-        self._trashed = data['trashed']
-        self._created = arrow.get(data['createdTime'])
-        self._modified = arrow.get(data['modifiedTime'])
-        self._parents = data.get('parents', None)
 
-        self._is_folder = data['mimeType'] == u.FOLDER_MIME_TYPE
-        self._md5 = data.get('md5Checksum', None)
-        self._size = data.get('size', None)
+def node_from_api(data: Dict[Text, Any]) -> Node:
+    return Node(
+        id_=data['id'],
+        name=data['name'],
+        trashed=data['trashed'],
+        created=arrow.get(data['createdTime']),
+        modified=arrow.get(data['modifiedTime']),
+        parents=data.get('parents', None),
+        is_folder=data['mimeType'] == u.FOLDER_MIME_TYPE,
+        md5=data.get('md5Checksum', None),
+        size=data.get('size', None),
+    )
 
-    def _initialize_from_database(self) -> None:
-        data = self._data
-        self._id = data['id']
-        self._name = data['name']
-        self._trashed = bool(data['trashed'])
-        self._created = arrow.get(data['created'])
-        self._modified = arrow.get(data['modified'])
-        self._parents = data.get('parents', None)
 
-        self._is_folder = data['is_folder']
-        self._md5 = data['md5']
-        self._size = data['size']
+def node_from_database(data: Dict[Text, Any]) -> Node:
+    return Node(
+        id_=data['id'],
+        name=data['name'],
+        trashed=bool(data['trashed']),
+        created=arrow.get(data['created']),
+        modified=arrow.get(data['modified']),
+        parents=data.get('parents', None),
+        is_folder=data['is_folder'],
+        md5=data['md5'],
+        size=data['size'],
+    )
 
 
 class Database(object):
