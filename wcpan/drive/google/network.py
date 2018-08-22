@@ -305,6 +305,10 @@ class NetworkError(GoogleDriveError):
     pass
 
 
+class AuthenticationError(GoogleDriveError):
+    pass
+
+
 class OAuth2Manager(object):
 
     def __init__(self,
