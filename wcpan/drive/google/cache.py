@@ -113,7 +113,7 @@ class Cache(object):
         path = pl.Path(path)
         parts = list(path.parts)
         if parts[0] != '/':
-            raise Exception('invalid path')
+            raise ValueError('invalid path')
 
         root_id = await self.get_root_id()
         parts.pop(0)
