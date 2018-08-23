@@ -162,7 +162,7 @@ class Node(object):
         trashed: bool,
         created: arrow.Arrow,
         modified: arrow.Arrow,
-        parents: List[Text],
+        parent_id: Text,
         is_folder: bool,
         mime_type: Text,
         md5: Text,
@@ -173,7 +173,7 @@ class Node(object):
         self._trashed = trashed
         self._created = created
         self._modified = modified
-        self._parents = parents
+        self._parent_id = parent_id
         self._is_folder = is_folder
         self._mime_type = mime_type
         self._md5 = md5
@@ -211,14 +211,8 @@ class Node(object):
         return self._modified
 
     @property
-    def parents(self) -> List[Text]:
-        return self._parents
-
-    @property
     def parent_id(self) -> Text:
-        if len(self._parents) != 1:
-            raise CacheError(f'expected only one parent, got: {self._parents}')
-        return self._parents[0]
+        return self._parent_id
 
     @property
     def is_file(self) -> bool:
@@ -242,14 +236,18 @@ class Node(object):
 
 
 def node_from_api(data: Dict[Text, Any]) -> Node:
+    id_ = data['id']
     is_folder = data['mimeType'] == u.FOLDER_MIME_TYPE
+    parents = data.get('parents', None)
+    if parents and len(parents) > 1:
+        raise ValueError(f'node (id={id_}) has more then one parents')
     return Node(
-        id_=data['id'],
+        id_=id_,
         name=data['name'],
         trashed=data['trashed'],
         created=arrow.get(data['createdTime']),
         modified=arrow.get(data['modifiedTime']),
-        parents=data.get('parents', None),
+        parent_id=None if not parents else parents[0],
         is_folder=is_folder,
         mime_type=None if is_folder else data['mimeType'],
         md5=data.get('md5Checksum', None),
@@ -264,7 +262,7 @@ def node_from_database(data: Dict[Text, Any]) -> Node:
         trashed=bool(data['trashed']),
         created=arrow.get(data['created']),
         modified=arrow.get(data['modified']),
-        parents=data.get('parents', None),
+        parent_id=data['parent_id'],
         is_folder=data['is_folder'],
         mime_type=data['mime_type'],
         md5=data['md5'],
@@ -572,12 +570,12 @@ def inner_get_node_by_id(
     node['size'] = None if is_folder else rv['size']
 
     query.execute('''
-        SELECT parent, child
+        SELECT parent
         FROM parentage
         WHERE child=?
     ;''', (node_id,))
-    rv = query.fetchall()
-    node['parents'] = None if not rv else [_['parent'] for _ in rv]
+    rv = query.fetchone()
+    node['parent_id'] = rv['parent'] if rv else None
 
     node = node_from_database(node)
     return node
@@ -603,19 +601,13 @@ def inner_insert_node(query: sqlite3.Cursor, node: Node) -> None:
         ;''', (node.id_, node.mime_type, node.md5, node.size))
 
     # add parentage
-    if node.parents:
+    if node.parent_id:
         query.execute('''
-            DELETE FROM parentage
-            WHERE child=?
-        ;''', (node.id_,))
-
-        for parent in node.parents:
-            query.execute('''
-                INSERT OR REPLACE INTO parentage
-                (parent, child)
-                VALUES
-                (?, ?)
-            ;''', (parent, node.id_))
+            INSERT OR REPLACE INTO parentage
+            (parent, child)
+            VALUES
+            (?, ?)
+        ;''', (node.parent_id, node.id_))
 
 
 def inner_delete_node_by_id(query: sqlite3.Cursor, node_id: Text) -> None:
