@@ -218,8 +218,7 @@ class Node(object):
     @property
     def parent_id(self) -> Text:
         if len(self._parents) != 1:
-            msg = f'expected only one parent, got: {self._parents}'
-            raise CacheError(msg)
+            raise CacheError(f'expected only one parent, got: {self._parents}')
         return self._parents[0]
 
     @property
