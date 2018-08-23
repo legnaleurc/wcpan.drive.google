@@ -47,12 +47,12 @@ SQL_CREATE_TABLES = [
     CREATE TABLE parentage (
         parent TEXT NOT NULL,
         child TEXT NOT NULL,
-        PRIMARY KEY (parent, child),
+        PRIMARY KEY (child),
+        FOREIGN KEY (parent) REFERENCES nodes (id),
         FOREIGN KEY (child) REFERENCES nodes (id)
     );
     ''',
     'CREATE INDEX ix_parentage_parent ON parentage(parent);',
-    'CREATE INDEX ix_parentage_child ON parentage(child);',
     'CREATE INDEX ix_nodes_names ON nodes(name);',
     'CREATE INDEX ix_nodes_trashed ON nodes(trashed);',
     'CREATE INDEX ix_nodes_created ON nodes(created);',
