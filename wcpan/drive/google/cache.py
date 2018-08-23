@@ -65,7 +65,7 @@ CURRENT_SCHEMA_VERSION = 2
 class CacheError(u.GoogleDriveError):
 
     def __init__(self, message: Text) -> None:
-        super(DatabaseError, self).__init__()
+        super(CacheError, self).__init__()
 
         self._message = message
 
@@ -215,7 +215,7 @@ class Node(object):
     def parent_id(self) -> Text:
         if len(self._parents) != 1:
             msg = 'expected only one parent, got: {0}'.format(self._parents)
-            raise DatabaseError(msg)
+            raise CacheError(msg)
         return self._parents[0]
 
     @property
