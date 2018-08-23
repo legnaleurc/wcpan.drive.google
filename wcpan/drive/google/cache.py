@@ -35,6 +35,7 @@ SQL_CREATE_TABLES = [
     '''
     CREATE TABLE files (
         id TEXT NOT NULL,
+        mime_type TEXT,
         md5 TEXT,
         size INTEGER,
         PRIMARY KEY (id),
@@ -56,6 +57,7 @@ SQL_CREATE_TABLES = [
     'CREATE INDEX ix_nodes_trashed ON nodes(trashed);',
     'CREATE INDEX ix_nodes_created ON nodes(created);',
     'CREATE INDEX ix_nodes_modified ON nodes(modified);',
+    'CREATE INDEX ix_files_mime_type ON files(mime_type);',
     'PRAGMA user_version = 2;',
 ]
 
