@@ -28,8 +28,7 @@ SQL_CREATE_TABLES = [
         trashed BOOLEAN,
         created INTEGER,
         modified INTEGER,
-        PRIMARY KEY (id),
-        UNIQUE (id)
+        PRIMARY KEY (id)
     );
     ''',
     '''
@@ -39,7 +38,6 @@ SQL_CREATE_TABLES = [
         md5 TEXT,
         size INTEGER,
         PRIMARY KEY (id),
-        UNIQUE (id),
         FOREIGN KEY (id) REFERENCES nodes (id)
     );
     ''',
