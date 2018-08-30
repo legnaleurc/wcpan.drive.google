@@ -341,6 +341,14 @@ def parse_args(args):
     sync_parser = commands.add_parser('sync', aliases=['s'],
         help='synchronize database',
     )
+    add_bool_argument(sync_parser, 'verbose', 'v')
+    sync_parser.add_argument('-f', '--from', type=int, dest='from_',
+        default=None,
+        help=(
+            'synchronize from certain check point, and do not update cache'
+            ' (default: %(default)s)'
+        ),
+    )
     sync_parser.set_defaults(action=action_sync)
 
     find_parser = commands.add_parser('find', aliases=['f'],
@@ -422,11 +430,13 @@ def parse_args(args):
     return args
 
 
-def add_bool_argument(parser, name):
+def add_bool_argument(parser, name, short_name=None):
     flag = name.replace('_', '-')
-    pos_flag = '--' + flag
+    pos_flags = ['--' + flag]
+    if short_name:
+        pos_flags.append('-' + short_name)
     neg_flag = '--no-' + flag
-    parser.add_argument(pos_flag, dest=name, action='store_true')
+    parser.add_argument(*pos_flags, dest=name, action='store_true')
     parser.add_argument(neg_flag, dest=name, action='store_false')
 
 
@@ -435,10 +445,11 @@ async def action_help(message):
 
 
 async def action_sync(drive, args):
-    wl.INFO('wcpan.drive.google') << 'sync begin'
-    async for changes in drive.sync():
-        wl.INFO('wcpan.drive.google') << 'applied' << len(changes) << 'changes'
-    wl.INFO('wcpan.drive.google') << 'sync end'
+    async for changes in drive.sync(check_point=args.from_):
+        if args.verbose:
+            print_as_yaml(changes)
+        else:
+            print(len(changes))
     return 0
 
 
