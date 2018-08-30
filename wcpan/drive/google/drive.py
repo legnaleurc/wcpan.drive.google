@@ -43,14 +43,18 @@ class Drive(object):
         self._db = None
         self._raii = None
 
-    async def sync(self) -> AsyncGenerator[Dict[Text, Any], None]:
-        try:
-            check_point = await self._db.get_metadata('check_point')
-        except KeyError:
-            check_point = '1'
+    async def sync(self, check_point: int = None) -> AsyncGenerator[Dict[Text, Any], None]:
+        dry_run = check_point is not None
+        if dry_run and check_point > 0:
+            check_point = str(check_point)
+        else:
+            try:
+                check_point = await self._db.get_metadata('check_point')
+            except KeyError:
+                check_point = '1'
 
         # first time, get root node
-        if check_point == '1':
+        if not dry_run and check_point == '1':
             rv = await self._client.files.get('root', fields=FILE_FIELDS)
             rv = rv.json
             rv['name'] = None
@@ -75,7 +79,9 @@ class Drive(object):
 
             check_point = next_page_token if next_page_token is not None else new_start_page_token
 
-            await self._db.apply_changes(changes, check_point)
+            if not dry_run:
+                await self._db.apply_changes(changes, check_point)
+
             changes_list_args['page_token'] = check_point
 
             yield changes
