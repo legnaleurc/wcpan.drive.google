@@ -22,8 +22,9 @@ CHANGE_FIELDS = f'nextPageToken,newStartPageToken,changes(fileId,removed,file({F
 
 class Drive(object):
 
-    def __init__(self, conf_path: Text = None) -> None:
+    def __init__(self, conf_path: Text = None, timeout: int = 60) -> None:
         self._settings = Settings(conf_path)
+        self._timeout = timeout
         self._client = None
         self._db = None
         self._raii = None
@@ -31,7 +32,7 @@ class Drive(object):
     async def __aenter__(self) -> 'Drive':
         async with cl.AsyncExitStack() as stack:
             self._client = await stack.enter_async_context(
-                Client(self._settings))
+                Client(self._settings, self._timeout))
             dsn = self._settings['nodes_database_file']
             self._db = await stack.enter_async_context(Cache(dsn))
             self._raii = stack.pop_all()

@@ -11,8 +11,9 @@ API_ROOT = 'https://www.googleapis.com/drive/v3'
 
 class Client(object):
 
-    def __init__(self, settings: Settings) -> None:
+    def __init__(self, settings: Settings, timeout: int) -> None:
         self._settings = settings
+        self._timeout = timeout
         self._network = None
         self._api = None
         self._raii = None
@@ -20,7 +21,7 @@ class Client(object):
     async def __aenter__(self) -> 'Client':
         async with cl.AsyncExitStack() as stack:
             self._network = await stack.enter_async_context(
-                Network(self._settings))
+                Network(self._settings, self._timeout))
             self._api = {
                 'changes': Changes(self._network),
                 'files': Files(self._network),

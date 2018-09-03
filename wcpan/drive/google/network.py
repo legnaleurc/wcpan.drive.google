@@ -1,6 +1,7 @@
 import asyncio
 import contextlib as cl
 import enum
+import functools as ft
 import json
 import math
 import random
@@ -21,10 +22,19 @@ ContentProducer = Callable[[], AsyncGenerator[bytes, None]]
 ReadableContent = Union[bytes, ContentProducer]
 
 
+def network_timeout(network_method):
+    @ft.wraps(network_method)
+    async def wrapper(self, *args, **kwargs):
+        return await asyncio.wait_for(network_method(self, *args, **kwargs),
+                                      self._timeout)
+    return wrapper
+
+
 class Network(object):
 
-    def __init__(self, settings: Settings) -> None:
+    def __init__(self, settings: Settings, timeout: int) -> None:
         self._settings = settings
+        self._timeout = timeout
         self._backoff_level = 0
         self._session = None
         self._oauth = None
@@ -47,6 +57,7 @@ class Network(object):
         self._oauth = None
         self._raii = None
 
+    @network_timeout
     async def fetch(self,
         method: Text,
         url: Text,
@@ -70,6 +81,7 @@ class Network(object):
                 # We are in a broken state, just let client to handle it.
                 raise NetworkError()
 
+    @network_timeout
     async def upload(self,
         method: Text,
         url: Text,
@@ -82,12 +94,12 @@ class Network(object):
 
         try:
             response = await self._request_loop(kwargs)
-            return await to_json_response(response)
         except aiohttp.ClientConnectionError as e:
             raise NetworkError()
 
-        assert False, 'never reach here'
+        return await to_json_response(response)
 
+    @network_timeout
     async def download(self,
         method: Text,
         url: Text,
@@ -105,7 +117,7 @@ class Network(object):
             except aiohttp.ClientConnectionError as e:
                 continue
 
-            return StreamResponse(response)
+            return StreamResponse(response, self._timeout)
 
     async def _request_loop(self,
         kwargs: Dict[Text, Any],
@@ -254,8 +266,9 @@ class JSONResponse(Response):
 
 class StreamResponse(Response):
 
-    def __init__(self, response: aiohttp.ClientResponse) -> None:
+    def __init__(self, response: aiohttp.ClientResponse, timeout: int) -> None:
         super().__init__(response)
+        self._timeout = timeout
 
     async def __aenter__(self) -> 'StreamResponse':
         await self._response.__aenter__()
@@ -264,8 +277,14 @@ class StreamResponse(Response):
     async def __aexit__(self, type_, exc, tb) -> bool:
         await self._response.__aexit__(type_, exc, tb)
 
-    def chunks(self) -> AsyncIterator[bytes]:
-        return self._response.content.iter_any()
+    async def chunks(self) -> AsyncIterator[bytes]:
+        g = self._response.content.iter_any()
+        while True:
+            try:
+                v = await asyncio.wait_for(g.__anext__(), self._timeout)
+            except StopAsyncIteration:
+                break
+            yield v
 
 
 async def to_json_response(response: aiohttp.ClientResponse) -> JSONResponse:
