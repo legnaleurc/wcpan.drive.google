@@ -5,8 +5,8 @@ import mimetypes
 import os
 import os.path as op
 import re
-from typing import (Any, AsyncGenerator, Awaitable, Dict, List, Optional, Text,
-                    Tuple, Union)
+from typing import (Any, AsyncGenerator, Awaitable, Dict, Generator, List,
+                    Optional, Text, Tuple, Union)
 
 from wcpan.logger import INFO, WARNING, DEBUG, EXCEPTION
 
@@ -85,7 +85,8 @@ class Drive(object):
 
             changes_list_args['page_token'] = check_point
 
-            yield changes
+            for change in transform_changes(changes):
+                yield change
 
     async def get_root_node(self) -> Node:
         return await self._db.get_root_node()
@@ -709,3 +710,32 @@ async def drive_walk(drive, node):
         files = list(filter(lambda _: _.is_file, children))
         yield node, folders, files
         q.extend(folders)
+
+
+def transform_changes(change_list: List[Dict[Text, Any]]) -> Generator[Dict[Text, Any], None, None]:
+    for change in change_list:
+        is_removed = change['removed']
+        if is_removed:
+            yield {
+                'removed': True,
+                'id': change['fileId'],
+            }
+            continue
+
+        file_ = change['file']
+        is_shared = file_['shared']
+        is_owned_by_me = file_['ownedByMe']
+        if is_shared or not is_owned_by_me:
+            continue
+
+        yield {
+            'id': file_['id'],
+            'name': file_['name'],
+            'mime_type': file_['mimeType'],
+            'trashed': file_['trashed'],
+            'parent_id': file_['parents'][0],
+            'ctime': file_['createdTime'],
+            'mtime': file_['modifiedTime'],
+            'md5': file_['md5Checksum'],
+            'size': file_['size'],
+        }
