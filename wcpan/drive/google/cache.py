@@ -235,24 +235,29 @@ class Node(object):
         return self._size
 
 
-def node_from_api(data: Dict[Text, Any]) -> Node:
+def dict_from_api(data: Dict[Text, Any]) -> Dict[Text, Any]:
     id_ = data['id']
     is_folder = data['mimeType'] == u.FOLDER_MIME_TYPE
     parents = data.get('parents', None)
     if parents and len(parents) > 1:
         raise ValueError(f'node (id={id_}) has more then one parents')
-    return Node(
-        id_=id_,
-        name=data['name'],
-        trashed=data['trashed'],
-        created=arrow.get(data['createdTime']),
-        modified=arrow.get(data['modifiedTime']),
-        parent_id=None if not parents else parents[0],
-        is_folder=is_folder,
-        mime_type=None if is_folder else data['mimeType'],
-        md5=data.get('md5Checksum', None),
-        size=data.get('size', None),
-    )
+    return {
+        'id': id_,
+        'name': data['name'],
+        'trashed': data['trashed'],
+        'created': data['createdTime'],
+        'modified': data['modifiedTime'],
+        'parent_id': None if not parents else parents[0],
+        'is_folder': is_folder,
+        'mime_type': None if is_folder else data['mimeType'],
+        'md5': data.get('md5Checksum', None),
+        'size': data.get('size', None),
+    }
+
+
+def node_from_api(data: Dict[Text, Any]) -> Node:
+    data = dict_from_api(data)
+    return node_from_database(data)
 
 
 def node_from_database(data: Dict[Text, Any]) -> Node:

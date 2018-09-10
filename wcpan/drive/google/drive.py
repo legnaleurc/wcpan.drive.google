@@ -11,7 +11,7 @@ from typing import (Any, AsyncGenerator, Awaitable, Dict, Generator, List,
 from wcpan.logger import INFO, WARNING, DEBUG, EXCEPTION
 
 from .api import Client
-from .cache import Cache, Node, node_from_api
+from .cache import Cache, Node, node_from_api, dict_from_api
 from .network import ContentProducer, ResponseError, Response, NetworkError
 from .util import Settings, GoogleDriveError, CHUNK_SIZE
 
@@ -729,13 +729,6 @@ def transform_changes(change_list: List[Dict[Text, Any]]) -> Generator[Dict[Text
             continue
 
         yield {
-            'id': file_['id'],
-            'name': file_['name'],
-            'mime_type': file_['mimeType'],
-            'trashed': file_['trashed'],
-            'parent_id': file_['parents'][0],
-            'ctime': file_['createdTime'],
-            'mtime': file_['modifiedTime'],
-            'md5': file_['md5Checksum'],
-            'size': file_['size'],
+            'removed': False,
+            'node': dict_from_api(file_),
         }
