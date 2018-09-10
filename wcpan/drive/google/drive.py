@@ -16,7 +16,7 @@ from .network import ContentProducer, ResponseError, Response, NetworkError
 from .util import Settings, GoogleDriveError, CHUNK_SIZE
 
 
-FILE_FIELDS = 'id,name,mimeType,trashed,parents,createdTime,modifiedTime,md5Checksum,size'
+FILE_FIELDS = 'id,name,mimeType,trashed,parents,createdTime,modifiedTime,md5Checksum,size,shared,ownedByMe'
 CHANGE_FIELDS = f'nextPageToken,newStartPageToken,changes(fileId,removed,file({FILE_FIELDS}))'
 
 

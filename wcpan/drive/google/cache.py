@@ -466,9 +466,16 @@ def apply_changes(
             is_removed = change['removed']
             if is_removed:
                 inner_delete_node_by_id(query, change['fileId'])
-            else:
-                node = node_from_api(change['file'])
-                inner_insert_node(query, node)
+                continue
+
+            file_ = change['file']
+            is_shared = file_['shared']
+            is_owned_by_me = file_['ownedByMe']
+            if is_shared or not is_owned_by_me:
+                continue
+
+            node = node_from_api(file_)
+            inner_insert_node(query, node)
 
         inner_set_metadata(query, 'check_point', check_point)
 
