@@ -377,7 +377,10 @@ class OAuth2Manager(object):
         return self._oauth.access_token
 
     async def renew_token(self):
-        assert not self._refreshing, 'already renewing'
+        if self._refreshing:
+            async with self._lock:
+                await self._lock.wait()
+            return
 
         async with self._guard():
             try:
