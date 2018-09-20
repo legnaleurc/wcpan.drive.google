@@ -286,6 +286,9 @@ class StreamResponse(Response):
                 break
             yield v
 
+    async def read(self, length):
+        return await self._response.content.read(length)
+
 
 async def to_json_response(response: aiohttp.ClientResponse) -> JSONResponse:
     async with response:
