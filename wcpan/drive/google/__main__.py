@@ -448,8 +448,6 @@ async def action_sync(drive, args):
     async for changes in drive.sync(check_point=args.from_):
         if args.verbose:
             print_as_yaml(changes)
-        else:
-            print(len(changes))
     return 0
 
 
