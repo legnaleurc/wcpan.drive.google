@@ -350,6 +350,7 @@ class ReadableFile(object):
         await self._close_response()
 
     async def __aiter__(self) -> bytes:
+        await self._open_response()
         async for chunk in self._response.chunks():
             yield chunk
 
