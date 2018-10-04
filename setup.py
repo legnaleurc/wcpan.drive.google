@@ -22,7 +22,7 @@ setup(
         python_requires='>= 3.7',
         install_requires=[
             'PyYAML ~= 3.12',
-            'aiohttp ~= 3.3.2',
+            'aiohttp ~= 3.4.4',
             'arrow ~= 0.12.1',
             'wcpan.logger ~= 1.2.3',
             'wcpan.worker ~= 4.1.0',
