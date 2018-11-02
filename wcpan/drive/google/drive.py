@@ -248,17 +248,6 @@ class Drive(object):
 
         node = await self.get_node_by_id(node_id)
         node.trashed = True
-        await self._db.insert_node(node)
-
-        # update all children
-        async for parent, folders, files in drive_walk(self, node):
-            for folder in folders:
-                folder.trashed = True
-                await self._db.insert_node(folder)
-            for f in files:
-                f.trashed = True
-                await self._db.insert_node(f)
-
         return node
 
     async def trash_node(self, node: Node) -> Node:
@@ -289,9 +278,7 @@ class Drive(object):
         parent, dst_name = await self._get_dst_info(dst_path)
         await self._inner_rename_node(src_node, parent, dst_name)
 
-        # update local cache
         node = await self.fetch_node_by_id(src_node.id_)
-        await self._db.insert_node(node)
         return node
 
     async def _get_dst_info(self, dst_path: Text) -> Tuple[Node, Text]:
