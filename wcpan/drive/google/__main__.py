@@ -445,9 +445,13 @@ async def action_help(message):
 
 
 async def action_sync(drive, args):
-    async for changes in drive.sync(check_point=args.from_):
-        if args.verbose:
-            print_as_yaml(changes)
+    chunks = chunks_of(drive.sync(check_point=args.from_))
+    async for changes in chunks:
+        if not args.verbose:
+            print(len(changes))
+        else:
+            for change in changes:
+                print_as_yaml(changes)
     return 0
 
 
@@ -588,6 +592,17 @@ def md5sum(local_path):
     with open(local_path, 'rb') as fin:
         local_md5 = stream_md5sum(fin)
     return local_md5
+
+
+async def chunks_of(ag, size):
+    chunk = []
+    async for item in ag:
+        chunk.append(item)
+        if len(chunk) == size:
+            yield chunk
+            chunk = []
+    if chunk:
+        yield chunk
 
 
 def print_node(name, level):
