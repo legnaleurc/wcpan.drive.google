@@ -445,7 +445,7 @@ async def action_help(message):
 
 
 async def action_sync(drive, args):
-    chunks = chunks_of(drive.sync(check_point=args.from_))
+    chunks = chunks_of(drive.sync(check_point=args.from_), 100)
     async for changes in chunks:
         if not args.verbose:
             print(len(changes))
