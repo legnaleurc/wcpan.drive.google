@@ -150,6 +150,9 @@ class Cache(object):
     async def find_orphan_nodes(self) -> List['Node']:
         return await self._bg(find_orphan_nodes)
 
+    async def find_multiple_parents_nodes(self) -> List['Node']:
+        return await self._bg(find_multiple_parents_nodes)
+
     async def _bg(self, fn, *args):
         return await self._loop.run_in_executor(self._pool, fn, self._dsn,
                                                 *args)
@@ -546,6 +549,20 @@ def find_orphan_nodes(dsn: Text) -> List['Node']:
         ;''')
         rv = query.fetchall()
         rv = [inner_get_node_by_id(query, _['id']) for _ in rv]
+    return rv
+
+
+def find_multiple_parents_nodes(dsn: Text) -> List['Node']:
+    with Database(dsn) as db, \
+         ReadOnly(db) as query:
+        query.execute('''
+            SELECT child, COUNT(child) AS parent_count
+            FROM parentage
+            GROUP BY child
+            HAVING parent_count > 1
+        ;''')
+        rv = query.fetchall()
+        rv = [inner_get_node_by_id(query, _['child']) for _ in rv]
     return rv
 
 

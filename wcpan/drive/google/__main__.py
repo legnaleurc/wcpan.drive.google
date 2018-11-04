@@ -420,6 +420,11 @@ def parse_args(args):
     v_parser.add_argument('source', type=str, nargs='+')
     v_parser.add_argument('id_or_path', type=str)
 
+    d_parser = commands.add_parser('doctor',
+        help='check file system error'
+    )
+    d_parser.set_defaults(action=action_doctor)
+
     sout = io.StringIO()
     parser.print_help(sout)
     fallback = ft.partial(action_help, sout.getvalue())
@@ -542,6 +547,23 @@ async def action_verify(drive, args):
         await asyncio.wait(tasks)
 
     return 0
+
+
+async def action_doctor(drive, args):
+    for node in await drive.find_multiple_parents_nodes():
+        print(f'{node.name} has multiple parents, please select one parent:')
+        parent_list = (drive.get_node_by_id(_) for _ in node.parent_list)
+        parent_list = await asyncio.gather(*parent_list)
+        for index, parent_node in enumerate(parent_list):
+            print(f'{index}: {parent_node.name}')
+        try:
+            choice = input()
+            choice = int(choice)
+            parent = parent_list[choice]
+            await drive.set_node_parent_by_id(node, parent.id_)
+        except Exception as e:
+            print('unknown error, skipped', e)
+            continue
 
 
 async def get_node_by_id_or_path(drive, id_or_path):

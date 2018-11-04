@@ -130,6 +130,9 @@ class Drive(object):
     async def find_orphan_nodes(self) -> List[Node]:
         return await self._db.find_orphan_nodes()
 
+    async def find_multiple_parents_nodes(self) -> List[Node]:
+        return await self._db.find_multiple_parents_nodes()
+
     async def download_by_id(self, node_id: Text) -> 'ReadableFile':
         node = await self.get_node_by_id(node_id)
         return await self.download(node)
@@ -280,6 +283,11 @@ class Drive(object):
 
         node = await self.fetch_node_by_id(src_node.id_)
         return node
+
+    async def set_node_parent_by_id(self, node: Node, parent_id: Text) -> None:
+        remove_parents = [_ for _ in node.parent_list if _ != parent_id]
+        api = self._client.files
+        await api.update(node.id_, remove_parents=remove_parents)
 
     async def _get_dst_info(self, dst_path: Text) -> Tuple[Node, Text]:
         if not op.isabs(dst_path):
