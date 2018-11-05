@@ -81,7 +81,6 @@ class Network(object):
                 # We are in a broken state, just let client to handle it.
                 raise NetworkError()
 
-    @network_timeout
     async def upload(self,
         method: Text,
         url: Text,
