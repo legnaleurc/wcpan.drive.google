@@ -27,6 +27,7 @@ class Drive(object):
         self._timeout = timeout
         self._client = None
         self._db = None
+        self._sync_lock = asyncio.Lock()
         self._raii = None
 
     async def __aenter__(self) -> 'Drive':
@@ -44,48 +45,11 @@ class Drive(object):
         self._db = None
         self._raii = None
 
-    async def sync(self, check_point: int = None) -> AsyncGenerator[Dict[Text, Any], None]:
-        dry_run = check_point is not None
-        if dry_run and check_point > 0:
-            check_point = str(check_point)
-        else:
-            try:
-                check_point = await self._db.get_metadata('check_point')
-            except KeyError:
-                check_point = '1'
-
-        # first time, get root node
-        if not dry_run and check_point == '1':
-            rv = await self._client.files.get('root', fields=FILE_FIELDS)
-            rv = rv.json
-            rv['name'] = None
-            rv['parents'] = []
-            node = node_from_api(rv)
-            await self._db.insert_node(node)
-
-        new_start_page_token = None
-        changes_list_args = {
-            'page_token': check_point,
-            'page_size': 1000,
-            'restrict_to_my_drive': True,
-            'fields': CHANGE_FIELDS,
-        }
-
-        while new_start_page_token is None:
-            rv = await self._client.changes.list_(**changes_list_args)
-            rv = rv.json
-            next_page_token = rv.get('nextPageToken', None)
-            new_start_page_token = rv.get('newStartPageToken', None)
-            changes = rv['changes']
-
-            check_point = next_page_token if next_page_token is not None else new_start_page_token
-
-            if not dry_run:
-                await self._db.apply_changes(changes, check_point)
-
-            changes_list_args['page_token'] = check_point
-
-            for change in transform_changes(changes):
+    async def sync(self,
+        check_point: int = None,
+    ) -> AsyncGenerator[Dict[Text, Any], None]:
+        async with self._sync_lock:
+            async for change in self._real_sync(check_point):
                 yield change
 
     async def get_root_node(self) -> Node:
@@ -288,6 +252,52 @@ class Drive(object):
         remove_parents = [_ for _ in node.parent_list if _ != parent_id]
         api = self._client.files
         await api.update(node.id_, remove_parents=remove_parents)
+
+    async def _real_sync(self,
+        check_point: int,
+    ) -> AsyncGenerator[Dict[Text, Any], None]:
+        dry_run = check_point is not None
+        if dry_run and check_point > 0:
+            check_point = str(check_point)
+        else:
+            try:
+                check_point = await self._db.get_metadata('check_point')
+            except KeyError:
+                check_point = '1'
+
+        # first time, get root node
+        if not dry_run and check_point == '1':
+            rv = await self._client.files.get('root', fields=FILE_FIELDS)
+            rv = rv.json
+            rv['name'] = None
+            rv['parents'] = []
+            node = node_from_api(rv)
+            await self._db.insert_node(node)
+
+        new_start_page_token = None
+        changes_list_args = {
+            'page_token': check_point,
+            'page_size': 1000,
+            'restrict_to_my_drive': True,
+            'fields': CHANGE_FIELDS,
+        }
+
+        while new_start_page_token is None:
+            rv = await self._client.changes.list_(**changes_list_args)
+            rv = rv.json
+            next_page_token = rv.get('nextPageToken', None)
+            new_start_page_token = rv.get('newStartPageToken', None)
+            changes = rv['changes']
+
+            check_point = next_page_token if next_page_token is not None else new_start_page_token
+
+            if not dry_run:
+                await self._db.apply_changes(changes, check_point)
+
+            changes_list_args['page_token'] = check_point
+
+            for change in transform_changes(changes):
+                yield change
 
     async def _get_dst_info(self, dst_path: Text) -> Tuple[Node, Text]:
         if not op.isabs(dst_path):
