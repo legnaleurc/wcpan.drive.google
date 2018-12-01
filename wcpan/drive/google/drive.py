@@ -16,8 +16,26 @@ from .network import ContentProducer, ResponseError, Response, NetworkError
 from .util import Settings, GoogleDriveError, CHUNK_SIZE
 
 
-FILE_FIELDS = 'id,name,mimeType,trashed,parents,createdTime,modifiedTime,md5Checksum,size,shared,ownedByMe'
-CHANGE_FIELDS = f'nextPageToken,newStartPageToken,changes(fileId,removed,file({FILE_FIELDS}))'
+FILE_FIELDS = ','.join([
+    'id',
+    'name',
+    'mimeType',
+    'trashed',
+    'parents',
+    'createdTime',
+    'modifiedTime',
+    'md5Checksum',
+    'size',
+    'shared',
+    'ownedByMe',
+    'imageMediaMetadata',
+    'videoMediaMetadata',
+])
+CHANGE_FIELDS = ','.join([
+    'nextPageToken',
+    'newStartPageToken',
+    f'changes(fileId,removed,file({FILE_FIELDS}))',
+])
 
 
 class Drive(object):
