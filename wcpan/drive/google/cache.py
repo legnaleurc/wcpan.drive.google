@@ -60,6 +60,27 @@ SQL_CREATE_TABLES = [
     'CREATE INDEX ix_parentage_parent ON parentage(parent);',
     'CREATE INDEX ix_parentage_child ON parentage(child);',
 
+    '''
+    CREATE TABLE images (
+        id TEXT NOT NULL,
+        width INTEGER NOT NULL,
+        height INTEGER NOT NULL,
+        PRIMARY KEY (id),
+        FOREIGN KEY (id) REFERENCES nodes (id)
+    );
+    ''',
+
+    '''
+    CREATE TABLE videos (
+        id TEXT NOT NULL,
+        width INTEGER NOT NULL,
+        height INTEGER NOT NULL,
+        ms_duration INTEGER NOT NULL,
+        PRIMARY KEY (id),
+        FOREIGN KEY (id) REFERENCES nodes (id)
+    );
+    ''',
+
     'PRAGMA user_version = 3;',
 ]
 
