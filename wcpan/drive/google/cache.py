@@ -20,6 +20,7 @@ SQL_CREATE_TABLES = [
         PRIMARY KEY (key)
     );
     ''',
+
     '''
     CREATE TABLE nodes (
         id TEXT NOT NULL,
@@ -30,6 +31,11 @@ SQL_CREATE_TABLES = [
         PRIMARY KEY (id)
     );
     ''',
+    'CREATE INDEX ix_nodes_names ON nodes(name);',
+    'CREATE INDEX ix_nodes_trashed ON nodes(trashed);',
+    'CREATE INDEX ix_nodes_created ON nodes(created);',
+    'CREATE INDEX ix_nodes_modified ON nodes(modified);',
+
     '''
     CREATE TABLE files (
         id TEXT NOT NULL,
@@ -40,6 +46,8 @@ SQL_CREATE_TABLES = [
         FOREIGN KEY (id) REFERENCES nodes (id)
     );
     ''',
+    'CREATE INDEX ix_files_mime_type ON files(mime_type);',
+
     '''
     CREATE TABLE parentage (
         parent TEXT NOT NULL,
@@ -51,11 +59,7 @@ SQL_CREATE_TABLES = [
     ''',
     'CREATE INDEX ix_parentage_parent ON parentage(parent);',
     'CREATE INDEX ix_parentage_child ON parentage(child);',
-    'CREATE INDEX ix_nodes_names ON nodes(name);',
-    'CREATE INDEX ix_nodes_trashed ON nodes(trashed);',
-    'CREATE INDEX ix_nodes_created ON nodes(created);',
-    'CREATE INDEX ix_nodes_modified ON nodes(modified);',
-    'CREATE INDEX ix_files_mime_type ON files(mime_type);',
+
     'PRAGMA user_version = 3;',
 ]
 
