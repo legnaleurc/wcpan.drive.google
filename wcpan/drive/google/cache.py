@@ -354,6 +354,28 @@ def node_from_database(data: Dict[Text, Any]) -> Node:
     )
 
 
+def dict_from_node(node):
+    return {
+        'id': node.id_,
+        'parent_id': node.parent_id,
+        'name': node.name,
+        'trashed': node.trashed,
+        'is_folder': node.is_folder,
+        'created': node.created.isoformat(),
+        'modified': node.modified.isoformat(),
+        'mime_type': node.mime_type,
+        'md5': node.md5,
+        'size': node.size,
+        'is_image': node.is_image,
+        'image_width': node.image_width,
+        'image_height': node.image_height,
+        'is_video': node.is_video,
+        'video_width': node.video_width,
+        'video_height': node.video_height,
+        'video_ms_duration': node.video_ms_duration,
+    }
+
+
 class Database(object):
 
     def __init__(self, dsn: Text) -> None:

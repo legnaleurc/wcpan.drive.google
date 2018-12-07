@@ -11,7 +11,7 @@ from typing import (Any, AsyncGenerator, Awaitable, Dict, Generator, List,
 from wcpan.logger import INFO, WARNING, DEBUG, EXCEPTION
 
 from .api import Client
-from .cache import Cache, Node, node_from_api, dict_from_api
+from .cache import Cache, Node, node_from_api, dict_from_node
 from .network import ContentProducer, ResponseError, Response, NetworkError
 from .util import Settings, GoogleDriveError, CHUNK_SIZE
 
@@ -754,7 +754,9 @@ def transform_changes(change_list: List[Dict[Text, Any]]) -> Generator[Dict[Text
         if is_shared or not is_owned_by_me:
             continue
 
+        file_ = node_from_api(file_)
+        file_ = dict_from_node(file_)
         yield {
             'removed': False,
-            'node': node_from_api(file_),
+            'node': file_,
         }
