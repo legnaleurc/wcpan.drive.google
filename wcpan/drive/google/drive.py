@@ -756,5 +756,5 @@ def transform_changes(change_list: List[Dict[Text, Any]]) -> Generator[Dict[Text
 
         yield {
             'removed': False,
-            'node': dict_from_api(file_),
+            'node': node_from_api(file_),
         }
