@@ -710,7 +710,10 @@ def inner_get_node_by_id(
         WHERE id=?
     ;''', (node_id,))
     rv = query.fetchone()
-    node['image'] = rv
+    node['image'] = {
+        'width': rv['width'],
+        'height': rv['height'],
+    } if rv else None
 
     query.execute('''
         SELECT width, height, ms_duration
@@ -718,7 +721,11 @@ def inner_get_node_by_id(
         WHERE id=?
     ;''', (node_id,))
     rv = query.fetchone()
-    node['video'] = rv
+    node['video'] = {
+        'width': rv['width'],
+        'height': rv['height'],
+        'ms_duration': rv['ms_duration'],
+    } if rv else None
 
     node = node_from_database(node)
     return node
