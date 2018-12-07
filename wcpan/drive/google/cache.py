@@ -5,7 +5,7 @@ import functools as ft
 import pathlib as pl
 import re
 import sqlite3
-from typing import Any, Dict, List, Text, Union
+from typing import Any, Dict, List, Optional, Text, Union
 
 import arrow
 
@@ -260,15 +260,15 @@ class Node(object):
         return self._is_folder
 
     @property
-    def mime_type(self) -> Text:
+    def mime_type(self) -> Optional[Text]:
         return self._mime_type
 
     @property
-    def md5(self) -> Text:
+    def md5(self) -> Optional[Text]:
         return self._md5
 
     @property
-    def size(self) -> int:
+    def size(self) -> Optional[int]:
         return self._size
 
     @property
