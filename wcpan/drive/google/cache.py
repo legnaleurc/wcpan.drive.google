@@ -196,6 +196,8 @@ class Node(object):
         mime_type: Text,
         md5: Text,
         size: int,
+        image: Dict[Text, Any],
+        video: Dict[Text, Any],
     ) -> None:
         self._id = id_
         self._name = name
@@ -207,6 +209,8 @@ class Node(object):
         self._mime_type = mime_type
         self._md5 = md5
         self._size = size
+        self._image = image
+        self._video = video
 
     def __repr__(self):
         return f"Node(id='{self.id_}')"
@@ -267,10 +271,51 @@ class Node(object):
     def size(self) -> int:
         return self._size
 
+    @property
+    def is_image(self) -> bool:
+        return self._image is not None
+
+    @property
+    def image_width(self) -> int:
+        return self._image['width']
+
+    @property
+    def image_height(self) -> int:
+        return self._image['height']
+
+    @property
+    def is_video(self) -> bool:
+        return self._video is not None
+
+    @property
+    def video_width(self) -> int:
+        return self._video['width']
+
+    @property
+    def video_height(self) -> int:
+        return self._video['height']
+
+    @property
+    def video_ms_duration(self) -> int:
+        return self._video['ms_duration']
+
 
 def dict_from_api(data: Dict[Text, Any]) -> Dict[Text, Any]:
     id_ = data['id']
     is_folder = data['mimeType'] == u.FOLDER_MIME_TYPE
+    image = None
+    if 'imageMediaMetadata' in data:
+        image = {
+            'width': data['imageMediaMetadata']['width'],
+            'height': data['imageMediaMetadata']['height'],
+        }
+    video = None
+    if 'videoMediaMetadata' in data:
+        video = {
+            'width': data['videoMediaMetadata']['width'],
+            'height': data['videoMediaMetadata']['height'],
+            'ms_duration': data['videoMediaMetadata']['durationMillis'],
+        }
     return {
         'id': id_,
         'name': data['name'],
@@ -282,6 +327,8 @@ def dict_from_api(data: Dict[Text, Any]) -> Dict[Text, Any]:
         'mime_type': None if is_folder else data['mimeType'],
         'md5': data.get('md5Checksum', None),
         'size': data.get('size', None),
+        'image': image,
+        'video': video,
     }
 
 
@@ -302,6 +349,8 @@ def node_from_database(data: Dict[Text, Any]) -> Node:
         mime_type=data['mime_type'],
         md5=data['md5'],
         size=data['size'],
+        image=data['image'],
+        video=data['video'],
     )
 
 
@@ -633,6 +682,22 @@ def inner_get_node_by_id(
     rv = query.fetchall()
     node['parent_list'] = None if not rv else [_['parent'] for _ in rv]
 
+    query.execute('''
+        SELECT width, height
+        FROM images
+        WHERE id=?
+    ;''', (node_id,))
+    rv = query.fetchone()
+    node['image'] = rv
+
+    query.execute('''
+        SELECT width, height, ms_duration
+        FROM videos
+        WHERE id=?
+    ;''', (node_id,))
+    rv = query.fetchone()
+    node['video'] = rv
+
     node = node_from_database(node)
     return node
 
@@ -671,8 +736,39 @@ def inner_insert_node(query: sqlite3.Cursor, node: Node) -> None:
                 (?, ?)
             ;''', (parent, node.id_))
 
+    # add image information
+    if node.is_image:
+        query.execute('''
+            INSERT OR REPLACE INTO images
+            (id, width, height)
+            VALUES
+            (?, ?, ?)
+        ;''', (node.id_, node.image_width, node.image_height))
+
+    # add video information
+    if node.is_video:
+        query.execute('''
+            INSERT OR REPLACE INTO videos
+            (id, width, height, ms_duration)
+            VALUES
+            (?, ?, ?, ?)
+        ;''', (node.id_, node.video_width, node.video_height,
+               node.video_ms_duration))
+
 
 def inner_delete_node_by_id(query: sqlite3.Cursor, node_id: Text) -> None:
+    # remove from videos
+    query.execute('''
+        DELETE FROM videos
+        WHERE id=?
+    ;''', (node_id,))
+
+    # remove from images
+    query.execute('''
+        DELETE FROM images
+        WHERE id=?
+    ;''', (node_id,))
+
     # disconnect parents
     query.execute('''
         DELETE FROM parentage
