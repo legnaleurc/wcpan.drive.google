@@ -271,6 +271,22 @@ class Drive(object):
         api = self._client.files
         await api.update(node.id_, remove_parents=remove_parents)
 
+
+    async def walk(self,
+        node: Node,
+    ) -> AsyncGenerator[Tuple[Node, List[Node], List[Node]], None]:
+        if not node.is_folder:
+            return
+        q = [node]
+        while q:
+            node = q[0]
+            del q[0]
+            children = await self.get_children(node)
+            folders = list(filter(lambda _: _.is_folder, children))
+            files = list(filter(lambda _: _.is_file, children))
+            yield node, folders, files
+            q.extend(folders)
+
     async def _real_sync(self,
         check_point: int,
     ) -> AsyncGenerator[Dict[Text, Any], None]:
@@ -720,20 +736,6 @@ async def upload_continue(fin, fout) -> None:
     offset = await fout.tell()
     await fout.seek(offset)
     fin.seek(offset, os.SEEK_SET)
-
-
-async def drive_walk(drive, node):
-    if not node.is_folder:
-        return
-    q = [node]
-    while q:
-        node = q[0]
-        del q[0]
-        children = await drive.get_children(node)
-        folders = list(filter(lambda _: _.is_folder, children))
-        files = list(filter(lambda _: _.is_file, children))
-        yield node, folders, files
-        q.extend(folders)
 
 
 def transform_changes(change_list: List[Dict[Text, Any]]) -> Generator[Dict[Text, Any], None, None]:
