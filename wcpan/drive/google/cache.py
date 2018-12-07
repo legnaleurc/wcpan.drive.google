@@ -276,28 +276,28 @@ class Node(object):
         return self._image is not None
 
     @property
-    def image_width(self) -> int:
-        return self._image['width']
+    def image_width(self) -> Optional[int]:
+        return self._image['width'] if self.is_image else None
 
     @property
-    def image_height(self) -> int:
-        return self._image['height']
+    def image_height(self) -> Optional[int]:
+        return self._image['height'] if self.is_image else None
 
     @property
     def is_video(self) -> bool:
         return self._video is not None
 
     @property
-    def video_width(self) -> int:
-        return self._video['width']
+    def video_width(self) -> Optional[int]:
+        return self._video['width'] if self.is_video else None
 
     @property
-    def video_height(self) -> int:
-        return self._video['height']
+    def video_height(self) -> Optional[int]:
+        return self._video['height'] if self.is_video else None
 
     @property
-    def video_ms_duration(self) -> int:
-        return self._video['ms_duration']
+    def video_ms_duration(self) -> Optional[int]:
+        return self._video['ms_duration'] if self.is_video else None
 
 
 def dict_from_api(data: Dict[Text, Any]) -> Dict[Text, Any]:
