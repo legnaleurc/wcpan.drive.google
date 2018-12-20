@@ -187,6 +187,8 @@ async def initial_nodes(db):
                 'createdTime': get_utc_now().isoformat(),
                 'modifiedTime': get_utc_now().isoformat(),
                 'parents': ['__ROOT_ID__'],
+                'shared': False,
+                'ownedByMe': True,
             },
         },
         {
@@ -199,6 +201,8 @@ async def initial_nodes(db):
                 'createdTime': get_utc_now().isoformat(),
                 'modifiedTime': get_utc_now().isoformat(),
                 'parents': ['__ROOT_ID__'],
+                'shared': False,
+                'ownedByMe': True,
             }
         },
         {
@@ -213,6 +217,8 @@ async def initial_nodes(db):
                 'parents': ['__D1_ID__'],
                 'md5Checksum': '__F1_MD5__',
                 'size': 1337,
+                'shared': False,
+                'ownedByMe': True,
             }
         },
         {
@@ -227,6 +233,8 @@ async def initial_nodes(db):
                 'parents': ['__D2_ID__'],
                 'md5Checksum': '__F2_MD5__',
                 'size': 1234,
+                'shared': False,
+                'ownedByMe': True,
             }
         },
     ]
