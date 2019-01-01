@@ -740,7 +740,7 @@ async def upload_from_local(
     drive: Drive,
     parent_node: Node,
     file_path: Text,
-    exist_ok: bool = False
+    exist_ok: bool = False,
 ) -> Node:
     # sanity check
     if not op.isfile(file_path):
