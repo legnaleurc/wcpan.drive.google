@@ -370,8 +370,15 @@ class Drive(object):
         new_parent: Optional[Node],
         name: Optional[Text],
     ) -> Response:
+        # sanity check
         if not new_parent and not name:
             raise ValueError('invalid arguments')
+        fnbnfpi = self.fetch_node_by_name_from_parent_id
+        new_parent_id = node.parent_id if not new_parent else new_parent.id_
+        new_name = node.name if not name else name
+        new_node = await fnbnfpi(new_name, new_parent_id)
+        if new_node:
+            raise FileConflictedError(new_node)
 
         kwargs = {
             'file_id': node.id_,
