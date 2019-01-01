@@ -247,7 +247,7 @@ class Drive(object):
     async def rename_node_by_path(self, src_path: Text, dst_path: Text) -> Node:
         node = await self.get_node_by_path(src_path)
         if not node:
-            raise FileNotFoundError(src_path)
+            raise NodeNotFoundError(src_path)
         return await self.rename_node(node, dst_path)
 
     async def rename_node_by_id(self, node_id: Text, dst_path: Text) -> Node:
@@ -633,6 +633,15 @@ class ParentNotFoundError(RemoteNodeError):
 
     def __str__(self) -> Text:
         return f'remote parent id not found: {self._id}'
+
+
+class NodeNotFoundError(RemoteNodeError):
+
+    def __init__(self, path_or_id: Text) -> None:
+        self._path_or_id = path_or_id
+
+    def __str__(self) -> Text:
+        return f'remote node not found: {self._path_or_id}'
 
 
 async def download_to_local_by_id(
