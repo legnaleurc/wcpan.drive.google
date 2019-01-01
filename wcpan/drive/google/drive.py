@@ -139,6 +139,8 @@ class Drive(object):
             raise UploadError('invalid parent node')
         if not parent_node.is_folder:
             raise UploadError('invalid parent node')
+        if not folder_name:
+            raise UploadError('invalid folder name')
 
         # do not create again if there is a same file
         node = await self.fetch_node_by_name_from_parent_id(folder_name,
@@ -178,6 +180,8 @@ class Drive(object):
             raise UploadError('invalid parent node')
         if not parent_node.is_folder:
             raise UploadError('invalid parent node')
+        if not file_name:
+            raise UploadError('invalid file name')
 
         # do not upload if remote exists a same file
         node = await self.fetch_node_by_name_from_parent_id(file_name,
