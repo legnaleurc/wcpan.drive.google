@@ -212,7 +212,7 @@ class Drive(object):
         except ResponseError as e:
             if e.status == '400':
                 DEBUG('wcpan.drive.google') << 'invalid query string:' << query
-                raise InvalidNameError(name)
+                raise InvalidNameError(name) from e
             raise
 
         rv = rv.json
@@ -542,7 +542,7 @@ class WritableFile(object):
                                     mime_type=self._mime_type)
         except ResponseError as e:
             if e.status == '404':
-                raise UploadError('the upload session has been expired')
+                raise UploadError('the upload session has been expired') from e
             raise
         return rv
 
@@ -553,7 +553,7 @@ class WritableFile(object):
             if e.status == '410':
                 # This means the temporary URL has been cleaned up by Google
                 # Drive, so the client has to start over again.
-                raise UploadError('the upload session has been expired')
+                raise UploadError('the upload session has been expired') from e
             raise
 
         if rv.status != '308':
