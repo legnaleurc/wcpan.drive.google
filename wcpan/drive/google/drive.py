@@ -599,7 +599,12 @@ class UploadError(GoogleDriveError):
         return self._message
 
 
-class FileConflictedError(GoogleDriveError):
+class RemoteNodeError(GoogleDriveError):
+
+    pass
+
+
+class FileConflictedError(RemoteNodeError):
 
     def __init__(self, node: Node) -> None:
         self._node = node
@@ -621,7 +626,7 @@ class InvalidNameError(GoogleDriveError):
         return f'invalid name: {self._name}'
 
 
-class ParentNotFoundError(GoogleDriveError):
+class ParentNotFoundError(RemoteNodeError):
 
     def __init__(self, id_: Text) -> None:
         self._id = id_
