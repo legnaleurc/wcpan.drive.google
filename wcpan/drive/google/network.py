@@ -79,7 +79,7 @@ class Network(object):
             except aiohttp.ClientConnectionError as e:
                 # The server recived the request, but reading body failed.
                 # We are in a broken state, just let client to handle it.
-                raise NetworkError()
+                raise NetworkError() from e
 
     async def upload(self,
         method: Text,
@@ -94,7 +94,7 @@ class Network(object):
         try:
             response = await self._request_loop(kwargs)
         except aiohttp.ClientConnectionError as e:
-            raise NetworkError()
+            raise NetworkError() from e
 
         return await to_json_response(response)
 
