@@ -251,7 +251,6 @@ class Drive(object):
         return await self.rename_node(node, dst_path)
 
     async def rename_node_by_id(self, node_id: Text, dst_path: Text) -> Node:
-        # TODO raise exception for invalid nodes
         node = await self.get_node_by_id(node_id)
         return await self.rename_node(node, dst_path)
 
@@ -266,6 +265,10 @@ class Drive(object):
         If `dst_path` does not exist yet, `src_node` will be moved and rename to
         `dst_path`.
         '''
+        # sanity check
+        if not src_node:
+            raise ValueError('source node is none')
+
         parent, dst_name = await self._get_dst_info(dst_path)
         await self._inner_rename_node(src_node, parent, dst_name)
 
