@@ -81,6 +81,8 @@ class Network(object):
                 # We are in a broken state, just let client to handle it.
                 raise NetworkError() from e
 
+    # NOTE Unlike download, upload cannot set timeout to the whole method.
+    # Instead we should set timeout on body callback.
     async def upload(self,
         method: Text,
         url: Text,

@@ -196,6 +196,7 @@ class Drive(object):
                           touch=api.create_empty_file,
                           parent_id=parent_node.id_,
                           name=file_name,
+                          timeout=self._timeout,
                           size=file_size,
                           mime_type=mime_type)
         return wf
@@ -449,6 +450,7 @@ class WritableFile(object):
         touch: Any,
         parent_id: Text,
         name: Text,
+        timeout: float,
         size: int = None,
         mime_type: Text = None,
     ) -> None:
@@ -459,6 +461,7 @@ class WritableFile(object):
         self._touch = touch
         self._parent_id = parent_id
         self._name = name
+        self._timeout = timeout
         self._size = size
         self._mime_type = mime_type
         self._url = None
@@ -499,8 +502,15 @@ class WritableFile(object):
     async def write(self, chunk: bytes) -> int:
         await self._open_request()
         feed = self._queue.put(chunk)
+        feed = asyncio.wait_for(feed, timeout=self._timeout)
+        feed = asyncio.create_task(feed)
         await asyncio.wait([feed, self._bg],
                            return_when=asyncio.FIRST_COMPLETED)
+        if not feed.done():
+            # background connection ended
+            feed.cancel()
+        # consume exception
+        feed.result()
         return len(chunk)
 
     @property

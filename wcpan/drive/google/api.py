@@ -248,7 +248,7 @@ class Files(object):
         if mime_type is not None:
             headers['Content-Type'] = mime_type
 
-        # may raise timeout error, upload usually need more time to complete.
+        # Producer may raise timeout error, not the upload itself.
         rv = await self._network.upload('PUT', uri, headers=headers,
                                         body=producer)
         return rv
