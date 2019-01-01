@@ -602,7 +602,7 @@ class FileConflictedError(GoogleDriveError):
         self._node = node
 
     def __str__(self) -> Text:
-        return 'remote file already exists: ' + self._node.name
+        return f'remote file already exists: {self._node.name}'
 
     @property
     def node(self) -> Node:
@@ -615,7 +615,7 @@ class InvalidNameError(GoogleDriveError):
         self._name = name
 
     def __str__(self) -> Text:
-        return 'invalid name: ' + self._name
+        return f'invalid name: {self._name}'
 
 
 class ParentNotFoundError(GoogleDriveError):
