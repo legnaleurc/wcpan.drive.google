@@ -213,6 +213,8 @@ class Drive(object):
             if e.status == '400':
                 DEBUG('wcpan.drive.google') << 'invalid query string:' << query
                 raise InvalidNameError(name) from e
+            if e.status == '404':
+                raise ParentNotFoundError(parent_id) from e
             raise
 
         rv = rv.json
@@ -614,6 +616,15 @@ class InvalidNameError(GoogleDriveError):
 
     def __str__(self) -> Text:
         return 'invalid name: ' + self._name
+
+
+class ParentNotFoundError(GoogleDriveError):
+
+    def __init__(self, id_: Text) -> None:
+        self._id = id_
+
+    def __str__(self) -> Text:
+        return f'remote parent id not found: {self._id}'
 
 
 async def download_to_local_by_id(
