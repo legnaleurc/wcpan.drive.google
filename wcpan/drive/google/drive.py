@@ -226,7 +226,11 @@ class Drive(object):
         return node
 
     async def fetch_node_by_id(self, node_id: Text) -> Node:
-        rv = await self._client.files.get(node_id, fields=FILE_FIELDS)
+        try:
+            rv = await self._client.files.get(node_id, fields=FILE_FIELDS)
+        except ResponseError as e:
+            if e.status == '404':
+                raise NodeNotFoundError(node_id) from e
         rv = rv.json
         node = node_from_api(rv)
         return node
