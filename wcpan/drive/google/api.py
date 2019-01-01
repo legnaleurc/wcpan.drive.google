@@ -2,6 +2,8 @@ import contextlib as cl
 import json
 from typing import List, Text, Tuple
 
+import arrow
+
 from .network import Network, Response, ContentProducer
 from .util import FOLDER_MIME_TYPE, Settings
 
@@ -323,7 +325,10 @@ class Files(object):
         remove_parents: List[Text] = None,
         trashed: bool = None,
     ) -> Response:
-        args = {}
+        now = arrow.utcnow()
+        args = {
+            'modifiedTime': now.isoformat(),
+        }
         if add_parents is not None:
             args['addParents'] = ','.join(add_parents)
         if remove_parents is not None:
