@@ -791,7 +791,9 @@ async def upload_continue(fin, fout) -> None:
     fin.seek(offset, os.SEEK_SET)
 
 
-def transform_changes(change_list: List[Dict[Text, Any]]) -> Generator[Dict[Text, Any], None, None]:
+def transform_changes(
+    change_list: List[Dict[Text, Any]],
+) -> Generator[Dict[Text, Any], None, None]:
     for change in change_list:
         is_removed = change['removed']
         if is_removed:
