@@ -103,7 +103,6 @@ class Cache(object):
 
     def __init__(self, dsn: Text) -> None:
         self._dsn = dsn
-        self._loop = asyncio.get_event_loop()
         self._pool = None
         self._raii = None
 
@@ -179,8 +178,8 @@ class Cache(object):
         return await self._bg(find_multiple_parents_nodes)
 
     async def _bg(self, fn, *args):
-        return await self._loop.run_in_executor(self._pool, fn, self._dsn,
-                                                *args)
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(self._pool, fn, self._dsn, *args)
 
 
 class Node(object):

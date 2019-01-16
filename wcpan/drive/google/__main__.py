@@ -21,7 +21,6 @@ from .util import stream_md5sum, get_default_conf_path
 class AbstractQueue(object):
 
     def __init__(self, drive, jobs):
-        self._loop = asyncio.get_event_loop()
         self._drive = drive
         self._queue = ww.AsyncQueue(jobs)
         self._pool = None
@@ -150,7 +149,8 @@ class AbstractQueue(object):
         self._table[key] = self._counter
 
     async def _get_md5sum(self, local_path):
-        return await self._loop.run_in_executor(self._pool, md5sum, local_path)
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(self._pool, md5sum, local_path)
 
 
 class UploadQueue(AbstractQueue):
@@ -234,7 +234,6 @@ class UploadVerifier(object):
 
     def __init__(self, drive):
         self._drive = drive
-        self._loop = asyncio.get_event_loop()
         self._pool = None
         self._raii = None
 
@@ -305,7 +304,8 @@ class UploadVerifier(object):
         return child_node
 
     async def _get_md5sum(self, local_path):
-        return await self._loop.run_in_executor(self._pool, md5sum, local_path)
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(self._pool, md5sum, local_path)
 
 
 async def main(args=None):
@@ -643,7 +643,4 @@ def print_id_node_dict(data):
         print(f'{id_}: {path}')
 
 
-main_loop = asyncio.get_event_loop()
-exit_code = main_loop.run_until_complete(main())
-main_loop.close()
-sys.exit(exit_code)
+sys.exit(asyncio.run(main()))

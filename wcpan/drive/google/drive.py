@@ -454,7 +454,6 @@ class WritableFile(object):
         size: int = None,
         mime_type: Text = None,
     ) -> None:
-        self._loop = asyncio.get_event_loop()
         self._initiate = initiate
         self._upload = upload
         self._get_status = get_status
@@ -535,7 +534,8 @@ class WritableFile(object):
         if self._bg:
             return
         f = self._upload_to()
-        self._bg = self._loop.create_task(f)
+        loop = asyncio.get_running_loop()
+        self._bg = loop.create_task(f)
 
     async def _produce(self) -> AsyncGenerator[bytes, None]:
         while True:
