@@ -501,7 +501,7 @@ def get_path_by_id(dsn: Text, node_id: Text) -> Union[Text, None]:
             ;''', (node_id,))
             rv = query.fetchone()
             if not rv:
-                return None
+                raise CacheError(f'cannot find name for {node_id}')
 
             name = rv['name']
             if not name:
