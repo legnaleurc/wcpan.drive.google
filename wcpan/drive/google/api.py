@@ -1,11 +1,11 @@
-import contextlib as cl
+import contextlib
 import json
-from typing import List, Text, Tuple
+from typing import List, Text, Tuple, Dict
 
 import arrow
 
 from .network import Network, Response, ContentProducer
-from .util import FOLDER_MIME_TYPE, Settings
+from .util import FOLDER_MIME_TYPE, OAuth2Storage
 
 
 API_ROOT = 'https://www.googleapis.com/drive/v3'
@@ -13,17 +13,17 @@ API_ROOT = 'https://www.googleapis.com/drive/v3'
 
 class Client(object):
 
-    def __init__(self, settings: Settings, timeout: int) -> None:
-        self._settings = settings
+    def __init__(self, storage: OAuth2Storage, timeout: int) -> None:
+        self._storage = storage
         self._timeout = timeout
         self._network = None
         self._api = None
         self._raii = None
 
     async def __aenter__(self) -> 'Client':
-        async with cl.AsyncExitStack() as stack:
+        async with contextlib.AsyncExitStack() as stack:
             self._network = await stack.enter_async_context(
-                Network(self._settings, self._timeout))
+                Network(self._storage, self._timeout))
             self._api = {
                 'changes': Changes(self._network),
                 'files': Files(self._network),
@@ -195,6 +195,7 @@ class Files(object):
         total_file_size: int,
         parent_id: Text = None,
         mime_type: Text = None,
+        app_properties: Dict[str, str] = None,
     ) -> Response:
         if not file_name:
             raise ValueError('file name is empty')
@@ -206,6 +207,8 @@ class Files(object):
         }
         if parent_id is not None:
             metadata['parents'] = [parent_id]
+        if app_properties:
+            metadata['appProperties'] = app_properties
         metadata = json.dumps(metadata)
         metadata = metadata.encode('utf-8')
         headers = {
@@ -272,6 +275,7 @@ class Files(object):
     async def create_folder(self,
         folder_name: Text,
         parent_id: Text = None,
+        app_properties: Dict[str, str] = None,
     ) -> Response:
         metadata = {
             'name': folder_name,
@@ -279,6 +283,8 @@ class Files(object):
         }
         if parent_id is not None:
             metadata['parents'] = [parent_id]
+        if app_properties:
+            metadata['appProperties'] = app_properties
         metadata = json.dumps(metadata)
         metadata = metadata.encode('utf-8')
         headers = {
@@ -294,6 +300,7 @@ class Files(object):
         file_name: Text,
         parent_id: Text = None,
         mime_type: Text = None,
+        app_properties: Dict[str, str] = None,
     ) -> Response:
         if not file_name:
             raise ValueError('file name is empty')
@@ -307,6 +314,8 @@ class Files(object):
             metadata['mimeType'] = mime_type
         else:
             metadata['mimeType'] = 'application/octet-stream'
+        if app_properties:
+            metadata['appProperties'] = app_properties
         metadata = json.dumps(metadata)
         metadata = metadata.encode('utf-8')
         headers = {
@@ -324,6 +333,7 @@ class Files(object):
         add_parents: List[Text] = None,
         remove_parents: List[Text] = None,
         trashed: bool = None,
+        app_properties: Dict[str, str] = None,
     ) -> Response:
         args = {}
         if add_parents is not None:
@@ -336,6 +346,8 @@ class Files(object):
             metadata['name'] = name
         if trashed is not None:
             metadata['trashed'] = trashed
+        if app_properties:
+            metadata['appProperties'] = app_properties
 
         if not args and not metadata:
             raise ValueError('not enough parameter')

@@ -1,18 +1,28 @@
 import asyncio
-import contextlib as cl
+import contextlib
 import enum
-import functools as ft
+import functools
 import json
 import math
 import random
-from typing import (Any, AsyncGenerator, AsyncIterator, Callable, Dict,
-                    Generator, List, Optional, Text, Tuple, Union)
-import urllib.parse as up
+from typing import (
+    Any,
+    AsyncGenerator,
+    AsyncIterator,
+    Callable,
+    Dict,
+    Generator,
+    List,
+    Optional,
+    Tuple,
+    Union,
+)
 
 import aiohttp
 from wcpan.logger import DEBUG, EXCEPTION, INFO, WARNING
+from wcpan.drive.exceptions import DriveError
 
-from .util import GoogleDriveError, Settings
+from .util import OAuth2Storage, OAuth2Manager
 
 
 BACKOFF_FACTOR = 2
@@ -23,7 +33,7 @@ ReadableContent = Union[bytes, ContentProducer]
 
 
 def network_timeout(network_method):
-    @ft.wraps(network_method)
+    @functools.wraps(network_method)
     async def wrapper(self, *args, **kwargs):
         return await asyncio.wait_for(network_method(self, *args, **kwargs),
                                       self._timeout)
@@ -32,8 +42,8 @@ def network_timeout(network_method):
 
 class Network(object):
 
-    def __init__(self, settings: Settings, timeout: int) -> None:
-        self._settings = settings
+    def __init__(self, storage: OAuth2Storage, timeout: int) -> None:
+        self._storage = storage
         self._timeout = timeout
         self._backoff_level = 0
         self._session = None
@@ -41,11 +51,11 @@ class Network(object):
         self._raii = None
 
     async def __aenter__(self) -> 'Network':
-        async with cl.AsyncExitStack() as stack:
+        async with contextlib.AsyncExitStack() as stack:
             self._session = await stack.enter_async_context(
                 aiohttp.ClientSession())
             self._oauth = await stack.enter_async_context(
-                OAuth2Manager(self._session, self._settings))
+                OAuth2Manager(self._session, self._storage))
             self._raii = stack.pop_all()
 
         return self
@@ -59,10 +69,10 @@ class Network(object):
 
     @network_timeout
     async def fetch(self,
-        method: Text,
-        url: Text,
-        args: Dict[Text, Any] = None,
-        headers: Dict[Text, Text] = None,
+        method: str,
+        url: str,
+        args: Dict[str, Any] = None,
+        headers: Dict[str, str] = None,
         body: ReadableContent = None,
     ) -> 'JSONResponse':
         while True:
@@ -84,10 +94,10 @@ class Network(object):
     # NOTE Unlike download, upload cannot set timeout to the whole method.
     # Instead we should set timeout on body callback.
     async def upload(self,
-        method: Text,
-        url: Text,
-        args: Dict[Text, Any] = None,
-        headers: Dict[Text, Text] = None,
+        method: str,
+        url: str,
+        args: Dict[str, Any] = None,
+        headers: Dict[str, str] = None,
         body: ReadableContent = None,
     ) -> 'JSONResponse':
         kwargs = await self._prepare_kwargs(method, url, args, headers, body)
@@ -102,10 +112,10 @@ class Network(object):
 
     @network_timeout
     async def download(self,
-        method: Text,
-        url: Text,
-        args: Dict[Text, Any] = None,
-        headers: Dict[Text, Text] = None,
+        method: str,
+        url: str,
+        args: Dict[str, Any] = None,
+        headers: Dict[str, str] = None,
         body: ReadableContent = None,
     ) -> 'StreamResponse':
         while True:
@@ -115,20 +125,20 @@ class Network(object):
 
             try:
                 response = await self._request_loop(kwargs)
-            except aiohttp.ClientConnectionError as e:
+            except aiohttp.ClientConnectionError:
                 continue
 
             return StreamResponse(response, self._timeout)
 
     async def _request_loop(self,
-        kwargs: Dict[Text, Any],
+        kwargs: Dict[str, Any],
     ) -> aiohttp.ClientResponse:
         while True:
             await self._wait_backoff()
 
             try:
                 response = await self._session.request(**kwargs)
-            except aiohttp.ClientConnectionError as e:
+            except aiohttp.ClientConnectionError:
                 self._adjust_backoff_level(True)
                 raise
 
@@ -147,12 +157,12 @@ class Network(object):
             raise ResponseError(status, response, json_)
 
     async def _prepare_kwargs(self,
-        method: Text,
-        url: Text,
-        args: Optional[Dict[Text, Any]],
-        headers: Optional[Dict[Text, Text]],
+        method: str,
+        url: str,
+        args: Optional[Dict[str, Any]],
+        headers: Optional[Dict[str, str]],
         body: Optional[ReadableContent],
-    ) -> Dict[Text, Any]:
+    ) -> Dict[str, Any]:
         kwargs = {
             'method': method,
             'url': url,
@@ -165,8 +175,8 @@ class Network(object):
         return kwargs
 
     async def _prepare_headers(self,
-        headers: Optional[Dict[Text, Text]],
-    ) -> Dict[Text, Text]:
+        headers: Optional[Dict[str, str]],
+    ) -> Dict[str, str]:
         if headers is None:
             h = {}
         else:
@@ -175,12 +185,12 @@ class Network(object):
         await self._update_token_header(h)
         return h
 
-    async def _update_token_header(self, headers: Dict[Text, Text]) -> None:
+    async def _update_token_header(self, headers: Dict[str, str]) -> None:
         token = await self._oauth.get_access_token()
         headers['Authorization'] = f'Bearer {token}'
 
     async def _check_status(self,
-        status: Text,
+        status: str,
         response: aiohttp.ClientResponse,
     ) -> 'Status':
         backoff = await backoff_needed(status, response)
@@ -223,15 +233,15 @@ class Request(object):
         self._request = request
 
     @property
-    def uri(self) -> Text:
+    def uri(self) -> str:
         return self._request.url
 
     @property
-    def method(self) -> Text:
+    def method(self) -> str:
         return self._request.method
 
     @property
-    def headers(self) -> Dict[Text, Text]:
+    def headers(self) -> Dict[str, str]:
         return self._request.headers
 
 
@@ -246,7 +256,7 @@ class Response(object):
     def status(self):
         return self._status
 
-    def get_header(self, key: Text) -> Text:
+    def get_header(self, key: str) -> str:
         h = self._response.headers.getall(key)
         return None if not h else h[0]
 
@@ -255,13 +265,13 @@ class JSONResponse(Response):
 
     def __init__(self,
         response: aiohttp.ClientResponse,
-        json_: Dict[Text, Any],
+        json_: Dict[str, Any],
     ) -> None:
         super().__init__(response)
         self._json = json_
 
     @property
-    def json(self) -> Dict[Text, Any]:
+    def json(self) -> Dict[str, Any]:
         return self._json
 
 
@@ -300,23 +310,23 @@ async def to_json_response(response: aiohttp.ClientResponse) -> JSONResponse:
     return JSONResponse(response, json_)
 
 
-class ResponseError(GoogleDriveError):
+class ResponseError(DriveError):
 
     def __init__(self,
-        status: Text,
+        status: str,
         response: aiohttp.ClientResponse,
-        json_: Dict[Text, Any],
+        json_: Dict[str, Any],
     ) -> None:
         self._status = status
         self._response = response
         self._message = f'{self.status} {self._response.reason} - {json_}'
         self._json = json_
 
-    def __str__(self) -> Text:
+    def __str__(self) -> str:
         return self._message
 
     @property
-    def status(self) -> Text:
+    def status(self) -> str:
         return self._status
 
     @property
@@ -324,209 +334,8 @@ class ResponseError(GoogleDriveError):
         return self._json
 
 
-class NetworkError(GoogleDriveError):
+class NetworkError(DriveError):
     pass
-
-
-class AuthenticationError(GoogleDriveError):
-    pass
-
-
-class OAuth2Manager(object):
-
-    def __init__(self,
-        session: aiohttp.ClientSession,
-        settings: Settings,
-    ) -> None:
-        self._session = session
-        self._settings = settings
-        self._lock = asyncio.Condition()
-        self._refreshing = False
-        self._error = False
-        self._oauth = None
-        self._raii = None
-
-    async def __aenter__(self) -> 'OAuth2Manager':
-        oauth2_info = await self._settings.load_oauth2_info()
-
-        async with cl.AsyncExitStack() as stack:
-            self._oauth = await stack.enter_async_context(
-                CommandLineGoogleDriveOAuth2(
-                    self._session,
-                    oauth2_info['client_id'],
-                    oauth2_info['client_secret'],
-                    oauth2_info['redirect_uri'],
-                    oauth2_info['access_token'],
-                    oauth2_info['refresh_token'],
-                ))
-            await self._settings.save_oauth2_info(self._oauth.access_token,
-                                                  self._oauth.refresh_token)
-            self._raii = stack.pop_all()
-
-        return self
-
-    async def __aexit__(self, type_, exc, tb) -> bool:
-        await self._raii.aclose()
-        self._raii = None
-        self._oauth = None
-        self._error = False
-        self._refreshing = False
-
-    async def get_access_token(self) -> Text:
-        if self._refreshing:
-            async with self._lock:
-                await self._lock.wait()
-        if self._error:
-            raise AuthenticationError()
-        return self._oauth.access_token
-
-    async def renew_token(self):
-        if self._refreshing:
-            async with self._lock:
-                await self._lock.wait()
-            return
-
-        async with self._guard():
-            try:
-                await self._oauth.refresh()
-                await self._settings.save_oauth2_info(self._oauth.access_token,
-                                                      self._oauth.refresh_token)
-            except Exception as e:
-                EXCEPTION('wcpan.drive.google', e) << 'error on refresh token'
-                self._error = True
-                raise
-            self._error = False
-
-        DEBUG('wcpan.drive.google') << 'refresh access token'
-
-    @cl.asynccontextmanager
-    async def _guard(self):
-        self._refreshing = True
-        try:
-            yield
-        finally:
-            self._refreshing = False
-            async with self._lock:
-                self._lock.notify_all()
-
-
-class CommandLineGoogleDriveOAuth2(object):
-
-    def __init__(self,
-        session: aiohttp.ClientSession,
-        client_id: Text,
-        client_secret: Text,
-        redirect_uri: Text,
-        access_token: Text = None,
-        refresh_token: Text = None
-    ) -> None:
-        self._session = session
-        self._client_id = client_id
-        self._client_secret = client_secret
-        self._redirect_uri = redirect_uri
-        self._access_token = access_token
-        self._refresh_token = refresh_token
-
-    async def __aenter__(self) -> 'CommandLineGoogleDriveOAuth2':
-        if self._access_token is None:
-            await self._fetch_access_token()
-        return self
-
-    async def __aexit__(self, type_, value, traceback) -> bool:
-        pass
-
-    @property
-    def access_token(self) -> Text:
-        assert self._access_token is not None
-        return self._access_token
-
-    @property
-    def refresh_token(self) -> Union[Text, None]:
-        return self._refresh_token
-
-    async def refresh(self) -> None:
-        headers = {
-            'Content-Type': 'application/x-www-form-urlencoded',
-        }
-        body = up.urlencode({
-            'client_id': self._client_id,
-            'client_secret': self._client_secret,
-            'refresh_token': self._refresh_token,
-            'grant_type': 'refresh_token',
-        })
-
-        async with self._session.post(self.oauth_access_token_url,
-                                      headers=headers, data=body) as response:
-            response.raise_for_status()
-            token = await response.json()
-        self._save_token(token)
-
-    def _save_token(self, token: Dict[Text, Any]) -> None:
-        self._access_token = token['access_token']
-        if 'refresh_token' in token:
-            self._refresh_token = token['refresh_token']
-
-    async def _fetch_access_token(self) -> None:
-        # get code on success
-        code = await self._authorize_redirect()
-        token = await self._get_authenticated_user(code=code)
-        self._save_token(token)
-
-    async def _authorize_redirect(self) -> Text:
-        kwargs = {
-            'redirect_uri': self._redirect_uri,
-            'client_id': self._client_id,
-            'response_type': 'code',
-            'scope': ' '.join(self.scopes),
-        }
-
-        url = up.urlparse(self.oauth_authorize_url)
-        url = up.urlunparse((
-            url[0],
-            url[1],
-            url[2],
-            url[3],
-            up.urlencode(kwargs),
-            url[5],
-        ))
-        return await self.redirect(url)
-
-    # NOTE Google only
-    @property
-    def oauth_authorize_url(self) -> Text:
-        return 'https://accounts.google.com/o/oauth2/auth'
-
-    # NOTE Google only
-    @property
-    def oauth_access_token_url(self) -> Text:
-        return 'https://accounts.google.com/o/oauth2/token'
-
-    # NOTE Google only
-    @property
-    def scopes(self) -> List[Text]:
-        return [
-            'https://www.googleapis.com/auth/drive',
-        ]
-
-    # NOTE Google only?
-    async def _get_authenticated_user(self, code: Text) -> Dict[Text, Any]:
-        headers = {'Content-Type': 'application/x-www-form-urlencoded'}
-        body = up.urlencode({
-            'redirect_uri': self._redirect_uri,
-            'code': code,
-            'client_id': self._client_id,
-            'client_secret': self._client_secret,
-            'grant_type': 'authorization_code',
-        })
-        async with self._session.post(self.oauth_access_token_url,
-                                      headers=headers, data=body) as response:
-            response.raise_for_status()
-            return await response.json()
-
-    # NOTE Use case depends
-    async def redirect(self, url: Text) -> Text:
-        print(url)
-        return input().strip()
 
 
 class Status(enum.Enum):
@@ -538,7 +347,7 @@ class Status(enum.Enum):
 
 
 async def backoff_needed(
-    status: Text,
+    status: str,
     response: aiohttp.ClientResponse,
 ) -> bool:
     if status not in BACKOFF_STATUSES:
@@ -559,8 +368,8 @@ async def backoff_needed(
 
 
 def normalize_query_string(
-    qs: Dict[Text, Any],
-) -> Generator[Tuple[Text, Text], None, None]:
+    qs: Dict[str, Any],
+) -> Generator[Tuple[str, str], None, None]:
     for key, value in qs.items():
         if isinstance(value, bool):
             value = 'true' if value else 'false'
