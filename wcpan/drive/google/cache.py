@@ -358,6 +358,12 @@ def node_from_database(data: Dict[Text, Any]) -> Node:
 
 
 def dict_from_node(node):
+    """
+    Convert a Node to dict object.
+
+    node: Node
+    """
+
     return {
         'id': node.id_,
         'parent_id': node.parent_id,

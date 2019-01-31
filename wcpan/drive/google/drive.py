@@ -40,6 +40,21 @@ CHANGE_FIELDS = ','.join([
 
 class Drive(object):
 
+    """
+    The main drive interface.
+
+    It is required to use context manager for this class.
+
+    Example::
+
+        async with Drive() as drive:
+            # do something ...
+
+    Args:
+        conf_path: The configuation path, default to aaaaa.
+        timeout: Timeout in **second** for remote operation.
+    """
+
     def __init__(self, conf_path: Text = None, timeout: int = 60) -> None:
         self._settings = Settings(conf_path)
         self._timeout = timeout
@@ -134,6 +149,28 @@ class Drive(object):
         folder_name: Text,
         exist_ok: bool = False,
     ) -> Node:
+        """
+        Create a new folder.
+
+        Args:
+            parent_node: The new folder will be a child in this node.
+            folder_name: The name of the new folder.
+            exist_ok: If `False`, `FileConflictedError` will be raised for
+                conflicted name.
+
+        Returns:
+            The new folder node.
+
+        Raises:
+            UploadError: `parent_node` is `None`.
+            UploadError: `parent_node` is not a folder.
+            UploadError: `folder_name` is `None` or an empty string.
+            FileConflictedError: `exist_ok` is `False` and `folder_name` is
+                already exists in `parent_node`.
+            RequestError: General request error.
+            NetworkError: General network error.
+        """
+
         # sanity check
         if not parent_node:
             raise UploadError('invalid parent node')
