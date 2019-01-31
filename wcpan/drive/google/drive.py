@@ -143,6 +143,11 @@ class Drive(object):
         Raises:
             ValueError: `node_id` not found.
             ValueError: The node point by `node_id` is not a file.
+
+        See Also:
+            * :py:meth:`.download`
+            * :py:func:`download_to_local`
+            * :py:func:`download_to_local_by_id`
         """
 
         node = await self.get_node_by_id(node_id)
@@ -161,6 +166,11 @@ class Drive(object):
         Raises:
             ValueError: `node` is `None`.
             ValueError: `node` is not a file.
+
+        See Also:
+            * :py:meth:`.download_by_id`
+            * :py:func:`download_to_local`
+            * :py:func:`download_to_local_by_id`
         """
 
         # sanity check
