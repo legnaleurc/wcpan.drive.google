@@ -232,6 +232,7 @@ class Drive(object):
         except ResponseError as e:
             if e.status == '404':
                 raise NodeNotFoundError(node_id) from e
+            raise
         rv = rv.json
         node = node_from_api(rv)
         return node
