@@ -134,6 +134,8 @@ class Drive(object):
         """
         Open a download stream.
 
+        This method needs network, and will not write cache.
+
         Args:
             node_id: The node id to be downloaded.
 
@@ -156,6 +158,8 @@ class Drive(object):
     async def download(self, node: Node) -> 'ReadableFile':
         """
         Open a download stream.
+
+        This method needs network, and will not write cache.
 
         Args:
             node: The node to be downloaded.
@@ -189,6 +193,8 @@ class Drive(object):
     ) -> Node:
         """
         Create a new folder.
+
+        This method needs network, and will not write cache.
 
         Args:
             parent_node: The new folder will be a child in this node.
@@ -302,6 +308,23 @@ class Drive(object):
         return node
 
     async def fetch_node_by_id(self, node_id: Text) -> Node:
+        """
+        Fetch the latest node information.
+
+        This method needs network, and will not read or write cache.
+
+        Args:
+            node_id: ID of the node.
+
+        Returns:
+            The up-to-date node information. Note this may differ from the local
+            cache.
+
+        Raises:
+            NodeNotFoundError: `node_id` is not found.
+            ResponseError: General response error.
+            NetworkError: General network error.
+        """
         try:
             rv = await self._client.files.get(node_id, fields=FILE_FIELDS)
         except ResponseError as e:
