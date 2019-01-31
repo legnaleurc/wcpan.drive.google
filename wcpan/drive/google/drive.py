@@ -131,10 +131,38 @@ class Drive(object):
         return await self._db.find_multiple_parents_nodes()
 
     async def download_by_id(self, node_id: Text) -> 'ReadableFile':
+        """
+        Open a download stream.
+
+        Args:
+            node_id: The node id to be downloaded.
+
+        Returns:
+            The stream object.
+
+        Raises:
+            ValueError: `node_id` not found.
+            ValueError: The node point by `node_id` is not a file.
+        """
+
         node = await self.get_node_by_id(node_id)
         return await self.download(node)
 
     async def download(self, node: Node) -> 'ReadableFile':
+        """
+        Open a download stream.
+
+        Args:
+            node: The node to be downloaded.
+
+        Returns:
+            The stream object.
+
+        Raises:
+            ValueError: `node` is `None`.
+            ValueError: `node` is not a file.
+        """
+
         # sanity check
         if not node:
             raise ValueError('node is none')
