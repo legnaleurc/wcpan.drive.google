@@ -121,6 +121,11 @@ class TestNodeCache(ut.TestCase):
         path = await self._db.get_path_by_id(node.id_)
         self.assertEqual(path, '/d1/f1')
 
+    @ww.sync
+    async def testGetInvalidPath(self):
+        with self.assertRaises(wdgc.CacheError):
+            await self._db.get_path_by_id('__INVALID_ID__')
+
 
 def connect(path):
     db = sqlite3.connect(path, timeout=0.1)
