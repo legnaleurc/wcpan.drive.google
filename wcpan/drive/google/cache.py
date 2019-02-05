@@ -88,6 +88,7 @@ SQL_CREATE_TABLES = [
 CURRENT_SCHEMA_VERSION = 3
 
 
+# NOTE *MUST* be picklable
 class CacheError(u.GoogleDriveError):
 
     def __init__(self, message: Text) -> None:
@@ -97,6 +98,9 @@ class CacheError(u.GoogleDriveError):
 
     def __str__(self) -> Text:
         return self._message
+
+    def __reduce__(self):
+        return type(self), (self._message,)
 
 
 class Cache(object):
