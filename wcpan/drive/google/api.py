@@ -325,10 +325,7 @@ class Files(object):
         remove_parents: List[Text] = None,
         trashed: bool = None,
     ) -> Response:
-        now = arrow.utcnow()
-        args = {
-            'modifiedTime': now.isoformat(),
-        }
+        args = {}
         if add_parents is not None:
             args['addParents'] = ','.join(add_parents)
         if remove_parents is not None:
@@ -342,6 +339,9 @@ class Files(object):
 
         if not args and not metadata:
             raise ValueError('not enough parameter')
+
+        now = arrow.utcnow()
+        metadata['modifiedTime'] = now.isoformat()
 
         metadata = json.dumps(metadata)
         metadata = metadata.encode('utf-8')
