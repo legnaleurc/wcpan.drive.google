@@ -206,7 +206,11 @@ class Drive(object):
         parent_id: Text,
     ) -> Node:
         safe_name = re.sub(r"[\\']", r"\\\g<0>", name)
-        query = f"'{parent_id}' in parents and name = '{safe_name}'"
+        query = ' and '.join([
+            f"'{parent_id}' in parents",
+            f"name = '{safe_name}'",
+            f'trashed = false',
+        ])
         fields = f'files({FILE_FIELDS})'
         try:
             rv = await self._client.files.list_(q=query, fields=fields)
