@@ -46,7 +46,7 @@ class Settings(object):
                 fout.write(rv)
         else:
             with open(path, 'r') as fin:
-                rv = yaml.load(fin)
+                rv = yaml.safe_load(fin)
             self._data.update(rv)
 
     def __getitem__(self, key: Text) -> Any:
