@@ -15,15 +15,15 @@ import wcpan.logger as wl
 import wcpan.worker as ww
 
 from .drive import Drive, DownloadError, download_to_local, upload_from_local
-from .util import stream_md5sum, get_default_conf_path
+from .util import stream_md5sum, get_default_conf_path, create_executor
 
 
 class AbstractQueue(object):
 
-    def __init__(self, drive, jobs):
+    def __init__(self, drive, pool, jobs):
         self._drive = drive
         self._queue = ww.AsyncQueue(jobs)
-        self._pool = None
+        self._pool = pool
         self._counter = 0
         self._table = {}
         self._total = 0
@@ -32,14 +32,12 @@ class AbstractQueue(object):
 
     async def __aenter__(self):
         async with cl.AsyncExitStack() as stack:
-            self._pool = stack.enter_context(cf.ProcessPoolExecutor())
             self._raii = stack.pop_all()
         return self
 
     async def __aexit__(self, type_, exc, tb):
         await self._queue.shutdown()
         await self._raii.aclose()
-        self._pool = None
         self._raii = None
 
     @property
@@ -155,8 +153,8 @@ class AbstractQueue(object):
 
 class UploadQueue(AbstractQueue):
 
-    def __init__(self, drive, jobs):
-        super(UploadQueue, self).__init__(drive, jobs)
+    def __init__(self, drive, pool, jobs):
+        super(UploadQueue, self).__init__(drive, pool, jobs)
 
     async def count_tasks(self, local_path):
         total = 1
@@ -195,8 +193,8 @@ class UploadQueue(AbstractQueue):
 
 class DownloadQueue(AbstractQueue):
 
-    def __init__(self, drive, jobs):
-        super(DownloadQueue, self).__init__(drive, jobs)
+    def __init__(self, drive, pool, jobs):
+        super(DownloadQueue, self).__init__(drive, pool, jobs)
 
     async def count_tasks(self, node):
         total = 1
@@ -232,21 +230,19 @@ class DownloadQueue(AbstractQueue):
 
 class UploadVerifier(object):
 
-    def __init__(self, drive):
+    def __init__(self, drive, pool):
         self._drive = drive
-        self._pool = None
+        self._pool = pool
         self._raii = None
 
     async def __aenter__(self):
         async with cl.AsyncExitStack() as stack:
-            self._pool = stack.enter_context(cf.ProcessPoolExecutor())
             self._raii = stack.pop_all()
         return self
 
     async def __aexit__(self, type_, exc, tb):
         await self._raii.aclose()
         self._raii = None
-        self._pool = None
 
     async def run(self, local_path, remote_node):
         if local_path.is_dir():
@@ -321,8 +317,9 @@ async def main(args=None):
         await args.fallback_action()
         return 0
 
-    async with Drive(args.conf) as drive:
-        return await args.action(drive, args)
+    with create_executor() as pool:
+        async with Drive(args.conf, pool) as drive:
+            return await args.action(drive, pool, args)
 
 
 def parse_args(args):
@@ -449,7 +446,7 @@ async def action_help(message):
     print(message)
 
 
-async def action_sync(drive, args):
+async def action_sync(drive, pool, args):
     chunks = chunks_of(drive.sync(check_point=args.from_), 100)
     async for changes in chunks:
         if not args.verbose:
@@ -460,7 +457,7 @@ async def action_sync(drive, args):
     return 0
 
 
-async def action_find(drive, args):
+async def action_find(drive, pool, args):
     nodes = await drive.find_nodes_by_regex(args.pattern)
     if not args.include_trash:
         nodes = (_ for _ in nodes if not _.trashed)
@@ -477,7 +474,7 @@ async def action_find(drive, args):
     return 0
 
 
-async def action_list(drive, args):
+async def action_list(drive, pool, args):
     node = await get_node_by_id_or_path(drive, args.id_or_path)
     nodes = await drive.get_children(node)
     nodes = {_.id_: _.name for _ in nodes}
@@ -485,18 +482,18 @@ async def action_list(drive, args):
     return 0
 
 
-async def action_tree(drive, args):
+async def action_tree(drive, pool, args):
     node = await get_node_by_id_or_path(drive, args.id_or_path)
     await traverse_node(drive, node, 0)
     return 0
 
 
-async def action_download(drive, args):
+async def action_download(drive, pool, args):
     node_list = (get_node_by_id_or_path(drive, _) for _ in args.id_or_path)
     node_list = await asyncio.gather(*node_list)
     node_list = [_ for _ in node_list if not _.trashed]
 
-    async with DownloadQueue(drive, args.jobs) as queue_:
+    async with DownloadQueue(drive, pool, args.jobs) as queue_:
         await queue_.run(node_list, args.destination)
 
     if not queue_.failed:
@@ -506,10 +503,10 @@ async def action_download(drive, args):
     return 1
 
 
-async def action_upload(drive, args):
+async def action_upload(drive, pool, args):
     node = await get_node_by_id_or_path(drive, args.id_or_path)
 
-    async with UploadQueue(drive, args.jobs) as queue_:
+    async with UploadQueue(drive, pool, args.jobs) as queue_:
         await queue_.run(args.source, node)
 
     if not queue_.failed:
@@ -519,7 +516,7 @@ async def action_upload(drive, args):
     return 1
 
 
-async def action_remove(drive, args):
+async def action_remove(drive, pool, args):
     rv = (trash_node(drive, _) for _ in args.id_or_path)
     rv = await asyncio.gather(*rv)
     rv = filter(None, rv)
@@ -531,17 +528,17 @@ async def action_remove(drive, args):
     return 1
 
 
-async def action_rename(drive, args):
+async def action_rename(drive, pool, args):
     node = await get_node_by_id_or_path(drive, args.source_id_or_path)
     node = await drive.rename_node(node, args.destination_path)
     path = await drive.get_path(node)
     return path
 
 
-async def action_verify(drive, args):
+async def action_verify(drive, pool, args):
     node = await get_node_by_id_or_path(drive, args.id_or_path)
 
-    async with UploadVerifier(drive) as v:
+    async with UploadVerifier(drive, pool) as v:
         tasks = (pl.Path(local_path) for local_path in args.source)
         tasks = [v.run(local_path, node) for local_path in tasks]
         await asyncio.wait(tasks)
@@ -549,7 +546,7 @@ async def action_verify(drive, args):
     return 0
 
 
-async def action_doctor(drive, args):
+async def action_doctor(drive, pool, args):
     for node in await drive.find_multiple_parents_nodes():
         print(f'{node.name} has multiple parents, please select one parent:')
         parent_list = (drive.get_node_by_id(_) for _ in node.parent_list)

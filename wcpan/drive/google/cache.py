@@ -105,21 +105,19 @@ class CacheError(u.GoogleDriveError):
 
 class Cache(object):
 
-    def __init__(self, dsn: Text) -> None:
+    def __init__(self, dsn: Text, pool: cf.Executor) -> None:
         self._dsn = dsn
-        self._pool = None
+        self._pool = pool
         self._raii = None
 
     async def __aenter__(self) -> 'Cache':
         with cl.ExitStack() as stack:
-            self._pool = stack.enter_context(cf.ProcessPoolExecutor())
             await self._bg(initialize)
             self._raii = stack.pop_all()
         return self
 
     async def __aexit__(self, type_, value, traceback) -> bool:
         self._raii.close()
-        self._pool = None
         self._raii = None
 
     async def get_root_id(self) -> Text:

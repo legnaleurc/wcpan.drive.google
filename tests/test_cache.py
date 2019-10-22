@@ -9,7 +9,7 @@ import unittest as ut
 import unittest.mock as utm
 
 import wcpan.drive.google.cache as wdgc
-from wcpan.drive.google.util import FOLDER_MIME_TYPE
+from wcpan.drive.google.util import FOLDER_MIME_TYPE, create_executor
 import wcpan.worker as ww
 
 
@@ -97,7 +97,8 @@ class TestNodeCache(ut.TestCase):
         _, self._file = tempfile.mkstemp()
 
         async with cl.AsyncExitStack() as ctx:
-            self._db = await ctx.enter_async_context(wdgc.Cache(self._file))
+            pool = ctx.enter_context(create_executor())
+            self._db = await ctx.enter_async_context(wdgc.Cache(self._file, pool))
             self._stack = ctx.pop_all()
 
         await initial_nodes(self._db)

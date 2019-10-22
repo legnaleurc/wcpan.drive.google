@@ -1,4 +1,5 @@
 import asyncio
+import concurrent.futures as cf
 import contextlib as cl
 import functools as ft
 import mimetypes
@@ -13,7 +14,7 @@ from wcpan.logger import INFO, WARNING, DEBUG, EXCEPTION
 from .api import Client
 from .cache import Cache, Node, node_from_api, dict_from_node
 from .network import ContentProducer, ResponseError, Response, NetworkError
-from .util import Settings, GoogleDriveError, CHUNK_SIZE
+from .util import Settings, GoogleDriveError, CHUNK_SIZE, create_executor
 
 
 FILE_FIELDS = ','.join([
@@ -40,9 +41,15 @@ CHANGE_FIELDS = ','.join([
 
 class Drive(object):
 
-    def __init__(self, conf_path: Text = None, timeout: int = 60) -> None:
+    def __init__(self,
+        conf_path: Text = None,
+        pool: cf.Executor = None,
+        timeout: int = 60,
+    ) -> None:
         self._settings = Settings(conf_path)
         self._timeout = timeout
+        self._external_pool = pool
+        self._pool = None
         self._client = None
         self._db = None
         self._sync_lock = asyncio.Lock()
@@ -50,15 +57,20 @@ class Drive(object):
 
     async def __aenter__(self) -> 'Drive':
         async with cl.AsyncExitStack() as stack:
+            if not self._external_pool:
+                self._pool = stack.enter_context(create_executor())
+            else:
+                self._pool = self._external_pool
             self._client = await stack.enter_async_context(
                 Client(self._settings, self._timeout))
             dsn = self._settings['nodes_database_file']
-            self._db = await stack.enter_async_context(Cache(dsn))
+            self._db = await stack.enter_async_context(Cache(dsn, self._pool))
             self._raii = stack.pop_all()
         return self
 
     async def __aexit__(self, exc_type, exc, tb) -> bool:
         await self._raii.aclose()
+        self._pool = None
         self._client = None
         self._db = None
         self._raii = None

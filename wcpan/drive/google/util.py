@@ -1,7 +1,11 @@
+import concurrent.futures as cf
 import hashlib
 import json
+import multiprocessing as mp
 import os
 import os.path as op
+import signal
+import sys
 from typing import Any, BinaryIO, Dict, Text
 
 import yaml
@@ -114,13 +118,28 @@ def stream_md5sum(input_stream: BinaryIO) -> Text:
     return hasher.hexdigest()
 
 
-def find_conf_path(path: Text = None):
+def find_conf_path(path: Text = None) -> Text:
     if path is not None:
         return path
     return get_default_conf_path()
 
 
-def get_default_conf_path():
+def get_default_conf_path() -> Text:
     path = '~/.cache/wcpan/drive/google'
     path = op.expanduser(path)
     return path
+
+
+def create_executor() -> cf.Executor:
+    if mp.get_start_method() == 'spawn':
+        return cf.ProcessPoolExecutor(initializer=initialize_worker)
+    else:
+        return cf.ProcessPoolExecutor()
+
+
+def initialize_worker() -> None:
+    signal.signal(signal.SIGINT, signal_handler)
+
+
+def signal_handler(*args, **kwargs):
+    sys.exit()
