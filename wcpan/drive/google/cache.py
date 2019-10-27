@@ -111,14 +111,11 @@ class Cache(object):
         self._raii = None
 
     async def __aenter__(self) -> 'Cache':
-        with cl.ExitStack() as stack:
-            await self._bg(initialize)
-            self._raii = stack.pop_all()
+        await self._bg(initialize)
         return self
 
     async def __aexit__(self, type_, value, traceback) -> bool:
-        self._raii.close()
-        self._raii = None
+        pass
 
     async def get_root_id(self) -> Text:
         return await self.get_metadata('root_id')

@@ -28,17 +28,12 @@ class AbstractQueue(object):
         self._table = {}
         self._total = 0
         self._failed = []
-        self._raii = None
 
     async def __aenter__(self):
-        async with cl.AsyncExitStack() as stack:
-            self._raii = stack.pop_all()
         return self
 
     async def __aexit__(self, type_, exc, tb):
         await self._queue.shutdown()
-        await self._raii.aclose()
-        self._raii = None
 
     @property
     def drive(self):
@@ -233,16 +228,6 @@ class UploadVerifier(object):
     def __init__(self, drive, pool):
         self._drive = drive
         self._pool = pool
-        self._raii = None
-
-    async def __aenter__(self):
-        async with cl.AsyncExitStack() as stack:
-            self._raii = stack.pop_all()
-        return self
-
-    async def __aexit__(self, type_, exc, tb):
-        await self._raii.aclose()
-        self._raii = None
 
     async def run(self, local_path, remote_node):
         if local_path.is_dir():
