@@ -10,7 +10,6 @@ import unittest.mock as utm
 
 import wcpan.drive.google.cache as wdgc
 from wcpan.drive.google.util import FOLDER_MIME_TYPE, create_executor
-import wcpan.worker as ww
 
 
 class TestTransaction(ut.TestCase):
@@ -90,10 +89,9 @@ class TestTransaction(ut.TestCase):
         self.assertEqual(str(e.exception), 'database is locked')
 
 
-class TestNodeCache(ut.TestCase):
+class TestNodeCache(ut.IsolatedAsyncioTestCase):
 
-    @ww.sync
-    async def setUp(self):
+    async def asyncSetUp(self):
         _, self._file = tempfile.mkstemp()
 
         async with cl.AsyncExitStack() as ctx:
@@ -103,17 +101,14 @@ class TestNodeCache(ut.TestCase):
 
         await initial_nodes(self._db)
 
-    @ww.sync
-    async def tearDown(self):
+    async def asyncTearDown(self):
         await self._stack.aclose()
         os.unlink(self._file)
 
-    @ww.sync
     async def testRoot(self):
         node = await self._db.get_root_node()
         self.assertEqual(node.id_, '__ROOT_ID__')
 
-    @ww.sync
     async def testSearch(self):
         nodes = await self._db.find_nodes_by_regex(r'^f1$')
         self.assertEqual(len(nodes), 1)
@@ -122,7 +117,6 @@ class TestNodeCache(ut.TestCase):
         path = await self._db.get_path_by_id(node.id_)
         self.assertEqual(path, '/d1/f1')
 
-    @ww.sync
     async def testGetInvalidPath(self):
         with self.assertRaises(wdgc.CacheError):
             await self._db.get_path_by_id('__INVALID_ID__')
