@@ -27,9 +27,12 @@ FOLDER_MIME_TYPE = 'application/vnd.google-apps.folder'
 
 class OAuth2Storage(object):
 
-    def __init__(self, config_path: str, data_path: str) -> None:
-        self._client_secret = pathlib.Path(config_path) / 'client_secret.json'
-        self._oauth_token = pathlib.Path(data_path) / 'oauth_token.yaml'
+    def __init__(self,
+        config_path: pathlib.Path,
+        data_path: pathlib.Path,
+    ) -> None:
+        self._client_secret = config_path / 'client_secret.json'
+        self._oauth_token = data_path / 'oauth_token.yaml'
 
     async def load_oauth2_info(self) -> OAuth2Info:
         # load API key

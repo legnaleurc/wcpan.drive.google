@@ -2,6 +2,7 @@ import asyncio
 import concurrent.futures
 import contextlib
 import hashlib
+import pathlib
 import re
 from typing import (
     Any,
@@ -69,8 +70,8 @@ class GoogleDriver(RemoteDriver):
         return (1, 1)
 
     def __init__(self,
-        config_path: str,
-        data_path: str,
+        config_path: pathlib.Path,
+        data_path: pathlib.Path,
         timeout: int = 60,
     ) -> None:
         self._storage = OAuth2Storage(config_path, data_path)
