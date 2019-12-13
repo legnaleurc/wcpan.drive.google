@@ -31,16 +31,16 @@ class TestOAuth2Storage(unittest.TestCase):
         self._config_path = None
         self._data_path = None
 
-    def testLoadConfigError1(self):
+    def testLoadError1(self):
         with self.assertRaises(FileNotFoundError):
             self._storage.load_oauth2_info()
 
-    def testLoadConfigError2(self):
+    def testLoadError2(self):
         write_config(self._config_path, {})
         with self.assertRaises(CredentialFileError):
             self._storage.load_oauth2_info()
 
-    def testLoadConfigEmptyToken(self):
+    def testLoadEmptyToken(self):
         write_default_config(self._config_path)
         rv = self._storage.load_oauth2_info()
         self.assertEqual(rv['client_id'], '__ID__')
@@ -49,7 +49,7 @@ class TestOAuth2Storage(unittest.TestCase):
         self.assertIsNone(rv['access_token'])
         self.assertIsNone(rv['refresh_token'])
 
-    def testLoadConfigError3(self):
+    def testLoadError3(self):
         write_default_config(self._config_path)
         write_token(self._data_path, {
             'version': -1,
@@ -57,7 +57,7 @@ class TestOAuth2Storage(unittest.TestCase):
         with self.assertRaises(TokenFileError):
             self._storage.load_oauth2_info()
 
-    def testLoadConfigWithToken(self):
+    def testLoadWithToken(self):
         write_default_config(self._config_path)
         write_token(self._data_path, {
             'version': 1,
