@@ -16,8 +16,12 @@ from typing import (
 
 from wcpan.logger import INFO, DEBUG, EXCEPTION
 
-from wcpan.drive.core.abc import RemoteDriver, ReadableFile, WritableFile, Hasher
-from wcpan.drive.core.cache import node_from_dict
+from wcpan.drive.core.abc import (
+    RemoteDriver,
+    ReadableFile,
+    WritableFile,
+    Hasher,
+)
 from wcpan.drive.core.exceptions import (
     NodeConflictedError,
     InvalidNameError,
@@ -557,4 +561,4 @@ def dict_from_api(data: GoogleFileDict) -> NodeDict:
 
 def node_from_api(data: GoogleFileDict) -> Node:
     node_data = dict_from_api(data)
-    return node_from_dict(node_data)
+    return Node.from_dict(node_data)
