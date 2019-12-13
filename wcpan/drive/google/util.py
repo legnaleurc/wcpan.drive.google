@@ -105,7 +105,7 @@ class OAuth2Manager(object):
 
         async with contextlib.AsyncExitStack() as stack:
             self._oauth = await stack.enter_async_context(
-                CommandLineGoogleDriveOAuth2(
+                OAuth2CommandLineAuthenticator(
                     self._session,
                     oauth2_info['client_id'],
                     oauth2_info['client_secret'],
@@ -168,7 +168,7 @@ class OAuth2Manager(object):
                 self._lock.notify_all()
 
 
-class CommandLineGoogleDriveOAuth2(object):
+class OAuth2CommandLineAuthenticator(object):
 
     def __init__(self,
         session: aiohttp.ClientSession,
@@ -185,7 +185,7 @@ class CommandLineGoogleDriveOAuth2(object):
         self._access_token = access_token
         self._refresh_token = refresh_token
 
-    async def __aenter__(self) -> 'CommandLineGoogleDriveOAuth2':
+    async def __aenter__(self) -> 'OAuth2CommandLineAuthenticator':
         if self._access_token is None:
             await self._fetch_access_token()
         return self
@@ -249,24 +249,20 @@ class CommandLineGoogleDriveOAuth2(object):
         ))
         return await self.redirect(url)
 
-    # NOTE Google only
     @property
     def oauth_authorize_url(self) -> str:
         return 'https://accounts.google.com/o/oauth2/auth'
 
-    # NOTE Google only
     @property
     def oauth_access_token_url(self) -> str:
         return 'https://accounts.google.com/o/oauth2/token'
 
-    # NOTE Google only
     @property
     def scopes(self) -> List[str]:
         return [
             'https://www.googleapis.com/auth/drive',
         ]
 
-    # NOTE Google only?
     async def _get_authenticated_user(self, code: str) -> Dict[str, Any]:
         headers = {'Content-Type': 'application/x-www-form-urlencoded'}
         body = urllib.parse.urlencode({
