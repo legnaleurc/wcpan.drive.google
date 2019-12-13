@@ -10,7 +10,7 @@ import yaml
 
 from wcpan.logger import DEBUG, EXCEPTION
 
-from wcpan.drive.core.exceptions import DriveError
+from .exceptions import AuthenticationError
 
 
 class OAuth2Info(TypedDict):
@@ -282,7 +282,3 @@ class CommandLineGoogleDriveOAuth2(object):
     async def redirect(self, url: str) -> str:
         print(url)
         return input().strip()
-
-
-class AuthenticationError(DriveError):
-    pass
