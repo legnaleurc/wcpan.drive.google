@@ -10,7 +10,7 @@ import yaml
 
 from wcpan.logger import DEBUG, EXCEPTION
 
-from .exceptions import AuthenticationError
+from .exceptions import AuthenticationError, CredentialFileError
 
 
 class OAuth2Info(TypedDict):
@@ -39,9 +39,7 @@ class OAuth2Storage(object):
         with self._client_secret.open('r') as fin:
             client = json.load(fin)
         if 'installed' not in client:
-            raise AuthenticationError(
-                'credential should be an installed application'
-            )
+            raise CredentialFileError()
         client = client['installed']
         redirect_uri = client['redirect_uris'][0]
         client_id = client['client_id']
