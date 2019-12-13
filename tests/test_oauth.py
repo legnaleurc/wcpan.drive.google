@@ -1,4 +1,5 @@
 from typing import Dict, Any
+from unittest.mock import AsyncMock, patch
 import contextlib
 import json
 import pathlib
@@ -7,8 +8,10 @@ import unittest
 
 import yaml
 
-from wcpan.drive.google.util import OAuth2Storage
+from wcpan.drive.google.util import OAuth2Storage, OAuth2CommandLineAuthenticator
 from wcpan.drive.google.exceptions import CredentialFileError, TokenFileError
+
+from .http_client import FakeClient
 
 
 class TestOAuth2Storage(unittest.TestCase):
@@ -80,6 +83,78 @@ class TestOAuth2Storage(unittest.TestCase):
         self.assertEqual(rv['version'], 1)
         self.assertEqual(rv['access_token'], '__ACCESS__')
         self.assertEqual(rv['refresh_token'], '__REFRESH__')
+
+
+class TestOAuth2Authenticator(unittest.IsolatedAsyncioTestCase):
+
+    async def testFirstRun(self):
+        class_ = OAuth2CommandLineAuthenticator
+
+        session = FakeClient()
+        with patch.object(class_, 'redirect') as fake_redirect:
+            fake_redirect.return_value = '__PASTED_TOKEN__'
+
+            session.add_json({
+                'access_token': '__ACCESS__',
+                'refresh_token': '__REFRESH__',
+            })
+            async with class_(
+                session,
+                '__ID__',
+                '__SECRET__',
+                '__URI__',
+                None,
+                None,
+            ) as oauth2:
+                self.assertEqual(oauth2.access_token, '__ACCESS__')
+                self.assertEqual(oauth2.refresh_token, '__REFRESH__')
+
+            called_list = session.get_request_sequence()
+            self.assertEqual(called_list, [
+                {
+                    'method': 'POST',
+                    'url': 'https://accounts.google.com/o/oauth2/token',
+                    'headers': {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    'data': [
+                        ('redirect_uri', '__URI__'),
+                        ('code', '__PASTED_TOKEN__'),
+                        ('client_id', '__ID__'),
+                        ('client_secret', '__SECRET__'),
+                        ('grant_type', 'authorization_code'),
+                    ],
+                },
+            ])
+
+    async def testRefresh(self):
+        class_ = OAuth2CommandLineAuthenticator
+
+        session = FakeClient()
+        with patch.object(class_, 'redirect') as fake_redirect:
+            fake_redirect.return_value = '__PASTED_TOKEN__'
+
+            session.add_json({
+                'access_token': '__ACCESS__',
+                'refresh_token': '__REFRESH__',
+            })
+            async with class_(
+                session,
+                '__ID__',
+                '__SECRET__',
+                '__URI__',
+                None,
+                None,
+            ) as oauth2:
+                session.reset()
+
+                session.add_json({
+                    'access_token': '__NEW_ACCESS__',
+                    'refresh_token': '__NEW_REFRESH__',
+                })
+                await oauth2.refresh()
+                self.assertEqual(oauth2.access_token, '__NEW_ACCESS__')
+                self.assertEqual(oauth2.refresh_token, '__NEW_REFRESH__')
 
 
 def write_config(config_path: pathlib.Path, dict_: Dict[str, Any]) -> None:
