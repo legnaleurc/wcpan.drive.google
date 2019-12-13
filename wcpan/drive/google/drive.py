@@ -528,6 +528,9 @@ def normalize_changes(
 def dict_from_api(data: GoogleFileDict) -> NodeDict:
     id_ = data['id']
     is_folder = data['mimeType'] == FOLDER_MIME_TYPE
+    size = data.get('size', None)
+    if size is not None:
+        size = int(size)
     image = None
     if 'imageMediaMetadata' in data:
         image = {
@@ -553,7 +556,7 @@ def dict_from_api(data: GoogleFileDict) -> NodeDict:
         'is_folder': is_folder,
         'mime_type': None if is_folder else data['mimeType'],
         'hash': data.get('md5Checksum', None),
-        'size': data.get('size', None),
+        'size': size,
         'image': image,
         'video': video,
         'private': private,
