@@ -71,6 +71,16 @@ class TestOAuth2Storage(unittest.TestCase):
         self.assertEqual(rv['access_token'], '__ACCESS__')
         self.assertEqual(rv['refresh_token'], '__REFRESH__')
 
+    def testSave(self):
+        self._storage.save_oauth2_info(
+            access_token='__ACCESS__',
+            refresh_token='__REFRESH__',
+        )
+        rv = read_token(self._data_path)
+        self.assertEqual(rv['version'], 1)
+        self.assertEqual(rv['access_token'], '__ACCESS__')
+        self.assertEqual(rv['refresh_token'], '__REFRESH__')
+
 
 def write_config(config_path: pathlib.Path, dict_: Dict[str, Any]) -> None:
     file_path = config_path / 'client_secret.json'
@@ -94,3 +104,10 @@ def write_token(data_path: pathlib.Path, dict_: Dict[str, Any]) -> None:
     file_path = data_path / 'oauth_token.yaml'
     with file_path.open('w') as fout:
         yaml.dump(dict_, fout)
+
+
+def read_token(data_path: pathlib.Path) -> Dict[str, Any]:
+    file_path = data_path / 'oauth_token.yaml'
+    with file_path.open('r') as fin:
+        rv = yaml.safe_load(fin)
+    return rv
