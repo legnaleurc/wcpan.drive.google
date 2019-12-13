@@ -82,9 +82,8 @@ class OAuth2Storage(object):
         }
 
         # save refresh token
-        rv = yaml.dump(token, default_flow_style=False)
         with self._oauth_token.open('w') as fout:
-            fout.write(rv)
+            yaml.dump(token, fout, default_flow_style=False)
 
 
 class OAuth2Manager(object):
