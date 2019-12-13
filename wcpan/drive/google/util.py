@@ -10,7 +10,7 @@ import yaml
 
 from wcpan.logger import DEBUG, EXCEPTION
 
-from .exceptions import AuthenticationError, CredentialFileError
+from .exceptions import AuthenticationError, CredentialFileError, TokenFileError
 
 
 class OAuth2Info(TypedDict):
@@ -23,6 +23,7 @@ class OAuth2Info(TypedDict):
 
 
 FOLDER_MIME_TYPE = 'application/vnd.google-apps.folder'
+OAUTH_TOKEN_VERSION = 1
 
 
 class OAuth2Storage(object):
@@ -38,12 +39,13 @@ class OAuth2Storage(object):
         # load API key
         with self._client_secret.open('r') as fin:
             client = json.load(fin)
-        if 'installed' not in client:
+        try:
+            client = client['installed']
+            redirect_uri = client['redirect_uris'][0]
+            client_id = client['client_id']
+            client_secret = client['client_secret']
+        except (KeyError, IndexError):
             raise CredentialFileError()
-        client = client['installed']
-        redirect_uri = client['redirect_uris'][0]
-        client_id = client['client_id']
-        client_secret = client['client_secret']
 
         # load refresh token
         if not self._oauth_token.is_file():
@@ -52,10 +54,14 @@ class OAuth2Storage(object):
         else:
             with self._oauth_token.open('r') as fin:
                 token = yaml.safe_load(fin)
-            if token.get('version', 0) != 1:
-                raise AuthenticationError('wrong token file')
-            access_token = token['access_token']
-            refresh_token = token['refresh_token']
+            version = token.get('version', 0)
+            if version != OAUTH_TOKEN_VERSION:
+                raise TokenFileError(f'invalid token version: {version}')
+            try:
+                access_token = token['access_token']
+                refresh_token = token['refresh_token']
+            except KeyError:
+                raise TokenFileError(f'invalid token format')
 
         return {
             'client_id': client_id,
@@ -70,7 +76,7 @@ class OAuth2Storage(object):
         refresh_token: str,
     ) -> None:
         token = {
-            'version': 1,
+            'version': OAUTH_TOKEN_VERSION,
             'access_token': access_token,
             'refresh_token': refresh_token,
         }

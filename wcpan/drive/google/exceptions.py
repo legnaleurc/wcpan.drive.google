@@ -26,3 +26,7 @@ class CredentialFileError(DriveError):
             'invalid config file format, correct example:\n'
             f'{CredentialFileError._get_dummy_config_format()}'
         ))
+
+
+class TokenFileError(DriveError):
+    pass
