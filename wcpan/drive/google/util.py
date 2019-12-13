@@ -10,7 +10,7 @@ import yaml
 
 from wcpan.logger import DEBUG, EXCEPTION
 
-from wcpan.drive.exceptions import DriveError
+from wcpan.drive.core.exceptions import DriveError
 
 
 class OAuth2Info(TypedDict):

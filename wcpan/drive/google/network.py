@@ -20,7 +20,7 @@ from typing import (
 
 import aiohttp
 from wcpan.logger import DEBUG, EXCEPTION, INFO, WARNING
-from wcpan.drive.exceptions import DriveError
+from wcpan.drive.core.exceptions import DriveError
 
 from .util import OAuth2Storage, OAuth2Manager
 

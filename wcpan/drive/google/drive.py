@@ -16,16 +16,16 @@ from typing import (
 
 from wcpan.logger import INFO, DEBUG, EXCEPTION
 
-from wcpan.drive.abc import RemoteDriver, ReadableFile, WritableFile, Hasher
-from wcpan.drive.cache import node_from_dict
-from wcpan.drive.exceptions import (
+from wcpan.drive.core.abc import RemoteDriver, ReadableFile, WritableFile, Hasher
+from wcpan.drive.core.cache import node_from_dict
+from wcpan.drive.core.exceptions import (
     NodeConflictedError,
     InvalidNameError,
     NodeNotFoundError,
     ParentNotFoundError,
     UploadError,
 )
-from wcpan.drive.types import ChangeDict, Node, NodeDict, PrivateDict
+from wcpan.drive.core.types import ChangeDict, Node, NodeDict, PrivateDict
 
 from .api import Client
 from .network import ResponseError, Response, NetworkError
