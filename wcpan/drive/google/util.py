@@ -34,7 +34,7 @@ class OAuth2Storage(object):
         self._client_secret = config_path / 'client_secret.json'
         self._oauth_token = data_path / 'oauth_token.yaml'
 
-    async def load_oauth2_info(self) -> OAuth2Info:
+    def load_oauth2_info(self) -> OAuth2Info:
         # load API key
         with self._client_secret.open('r') as fin:
             client = json.load(fin)
@@ -67,7 +67,7 @@ class OAuth2Storage(object):
             'refresh_token': refresh_token,
         }
 
-    async def save_oauth2_info(self,
+    def save_oauth2_info(self,
         access_token: str,
         refresh_token: str,
     ) -> None:
@@ -98,7 +98,7 @@ class OAuth2Manager(object):
         self._raii = None
 
     async def __aenter__(self) -> 'OAuth2Manager':
-        oauth2_info = await self._storage.load_oauth2_info()
+        oauth2_info = self._storage.load_oauth2_info()
 
         async with contextlib.AsyncExitStack() as stack:
             self._oauth = await stack.enter_async_context(
@@ -110,8 +110,10 @@ class OAuth2Manager(object):
                     oauth2_info['access_token'],
                     oauth2_info['refresh_token'],
                 ))
-            await self._storage.save_oauth2_info(self._oauth.access_token,
-                                                 self._oauth.refresh_token)
+            self._storage.save_oauth2_info(
+                self._oauth.access_token,
+                self._oauth.refresh_token,
+            )
             self._raii = stack.pop_all()
 
         return self
@@ -140,8 +142,10 @@ class OAuth2Manager(object):
         async with self._guard():
             try:
                 await self._oauth.refresh()
-                await self._storage.save_oauth2_info(self._oauth.access_token,
-                                                     self._oauth.refresh_token)
+                self._storage.save_oauth2_info(
+                    self._oauth.access_token,
+                    self._oauth.refresh_token,
+                )
             except Exception as e:
                 EXCEPTION('wcpan.drive.google', e) << 'error on refresh token'
                 self._error = True
