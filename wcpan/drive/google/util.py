@@ -36,7 +36,9 @@ class OAuth2Storage(object):
         with self._client_secret.open('r') as fin:
             client = json.load(fin)
         if 'installed' not in client:
-            raise ValueError('credential should be an installed application')
+            raise AuthenticationError(
+                'credential should be an installed application'
+            )
         client = client['installed']
         redirect_uri = client['redirect_uris'][0]
         client_id = client['client_id']
@@ -50,7 +52,7 @@ class OAuth2Storage(object):
             with self._oauth_token.open('r') as fin:
                 token = yaml.safe_load(fin)
             if token.get('version', 0) != 1:
-                raise ValueError('wrong token file')
+                raise AuthenticationError('wrong token file')
             access_token = token['access_token']
             refresh_token = token['refresh_token']
 
