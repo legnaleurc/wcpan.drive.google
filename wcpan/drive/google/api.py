@@ -1,6 +1,6 @@
 import contextlib
 import json
-from typing import List, Text, Tuple, Dict
+from typing import List, Tuple, Dict
 
 import arrow
 
@@ -54,52 +54,48 @@ class Changes(object):
         self._root = API_ROOT + '/changes'
 
     async def get_start_page_token(self,
-        supports_team_drives: bool = None,
-        team_drive_id: Text = None,
+        *,
+        drive_id: str = None,
+        fields: str = None,
     ) -> Response:
         args = {}
-        if supports_team_drives is not None:
-            args['supportsTeamDrives'] = supports_team_drives
-        if team_drive_id is not None:
-            args['teamDriveId'] = team_drive_id
+        if drive_id is not None:
+            args['driveId'] = drive_id
+        if fields is not None:
+            args['fields'] = fields
 
         uri = self._root + '/startPageToken'
         rv = await self._network.fetch('GET', uri, args)
         return rv
 
     async def list_(self,
-        page_token: Text,
+        page_token: str,
+        *,
+        drive_id: str = None,
+        fields: str = None,
         include_corpus_removals: bool = None,
         include_removed: bool = None,
-        include_team_drive_items: bool = None,
         page_size: int = None,
         restrict_to_my_drive: bool = None,
-        spaces: Text = None,
-        supports_team_drives: bool = None,
-        team_drive_id: Text = None,
-        fields: Text = None,
+        spaces: str = None,
     ) -> Response:
         args = {
             'pageToken': page_token,
         }
+        if drive_id is not None:
+            args['driveId'] = drive_id
+        if fields is not None:
+            args['fields'] = fields
         if include_corpus_removals is not None:
             args['includeCorpusRemovals'] = include_corpus_removals
         if include_removed is not None:
             args['includeRemoved'] = include_removed
-        if include_team_drive_items is not None:
-            args['includeTeamDriveItems'] = include_team_drive_items
         if page_size is not None:
             args['pageSize'] = page_size
         if restrict_to_my_drive is not None:
             args['restrictToMyDrive'] = restrict_to_my_drive
         if spaces is not None:
             args['spaces'] = spaces
-        if supports_team_drives is not None:
-            args['supportsTeamDrives'] = supports_team_drives
-        if team_drive_id is not None:
-            args['teamDriveId'] = team_drive_id
-        if fields is not None:
-            args['fields'] = fields
 
         rv = await self._network.fetch('GET', self._root, args)
         return rv
@@ -114,13 +110,11 @@ class Files(object):
 
     # only for metadata
     async def get(self,
-        file_id: Text,
-        supports_team_drives: bool = None,
-        fields: Text = None,
+        file_id: str,
+        *,
+        fields: str = None,
     ) -> Response:
         args = {}
-        if supports_team_drives is not None:
-            args['supportsTeamDrives'] = supports_team_drives
         if fields is not None:
             args['fields'] = fields
 
@@ -129,25 +123,23 @@ class Files(object):
         return rv
 
     async def list_(self,
-        corpora: Text = None,
-        corpus: Text = None,
-        include_team_drive_items: bool = None,
-        order_by: Text = None,
+        *,
+        corpora: str = None,
+        drive_id: str = None,
+        fields: str = None,
+        order_by: str = None,
         page_size: int = None,
-        page_token: Text = None,
-        q: Text = None,
-        spaces: Text = None,
-        supports_team_drives: bool = None,
-        team_drive_id: Text = None,
-        fields: Text = None,
+        page_token: str = None,
+        q: str = None,
+        spaces: str = None,
     ) -> Response:
         args = {}
         if corpora is not None:
             args['corpora'] = corpora
-        if corpus is not None:
-            args['corpus'] = corpus
-        if include_team_drive_items is not None:
-            args['includeTeamDriveItems'] = include_team_drive_items
+        if drive_id is not None:
+            args['driveId'] = drive_id
+        if fields is not None:
+            args['fields'] = fields
         if order_by is not None:
             args['orderBy'] = order_by
         if page_size is not None:
@@ -158,29 +150,21 @@ class Files(object):
             args['q'] = q
         if spaces is not None:
             args['spaces'] = spaces
-        if supports_team_drives is not None:
-            args['supportsTeamDrives'] = supports_team_drives
-        if team_drive_id is not None:
-            args['teamDriveId'] = team_drive_id
-        if fields is not None:
-            args['fields'] = fields
 
         rv = await self._network.fetch('GET', self._root, args)
         return rv
 
     async def download(self,
-        file_id: Text,
+        file_id: str,
         range_: Tuple[int, int],
+        *,
         acknowledge_abuse: bool = None,
-        supports_team_drives: bool = None,
     ) -> Response:
         args = {
             'alt': 'media',
         }
         if acknowledge_abuse is not None:
             args['acknowledgeAbuse'] = acknowledge_abuse
-        if supports_team_drives is not None:
-            args['supportsTeamDrives'] = supports_team_drives
 
         headers = {
             'Range': f'bytes={range_[0]}-{range_[1]}',
@@ -191,10 +175,11 @@ class Files(object):
         return rv
 
     async def initiate_uploading(self,
-        file_name: Text,
+        file_name: str,
         total_file_size: int,
-        parent_id: Text = None,
-        mime_type: Text = None,
+        *,
+        parent_id: str = None,
+        mime_type: str = None,
         app_properties: Dict[str, str] = None,
     ) -> Response:
         if not file_name:
@@ -228,11 +213,12 @@ class Files(object):
         return rv
 
     async def upload(self,
-        uri: Text,
+        uri: str,
         producer: ContentProducer,
         offset: int,
         total_file_size: int,
-        mime_type: Text = None,
+        *,
+        mime_type: str = None,
     ) -> Response:
         if not uri:
             raise ValueError('invalid session URI')
@@ -257,7 +243,7 @@ class Files(object):
         return rv
 
     async def get_upload_status(self,
-        uri: Text,
+        uri: str,
         total_file_size: int,
     ) -> Response:
         if not uri:
@@ -273,8 +259,9 @@ class Files(object):
         return rv
 
     async def create_folder(self,
-        folder_name: Text,
-        parent_id: Text = None,
+        folder_name: str,
+        *,
+        parent_id: str = None,
         app_properties: Dict[str, str] = None,
     ) -> Response:
         metadata = {
@@ -297,9 +284,10 @@ class Files(object):
         return rv
 
     async def create_empty_file(self,
-        file_name: Text,
-        parent_id: Text = None,
-        mime_type: Text = None,
+        file_name: str,
+        *,
+        parent_id: str = None,
+        mime_type: str = None,
         app_properties: Dict[str, str] = None,
     ) -> Response:
         if not file_name:
@@ -328,10 +316,11 @@ class Files(object):
         return rv
 
     async def update(self,
-        file_id: Text,
-        name: Text = None,
-        add_parents: List[Text] = None,
-        remove_parents: List[Text] = None,
+        file_id: str,
+        *,
+        name: str = None,
+        add_parents: List[str] = None,
+        remove_parents: List[str] = None,
         trashed: bool = None,
         app_properties: Dict[str, str] = None,
     ) -> Response:
