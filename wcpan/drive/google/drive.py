@@ -369,8 +369,12 @@ class GoogleWritableFile(WritableFile):
         return self
 
     async def __aexit__(self, type_, exc, tb) -> bool:
-        rv = await self._bg
-        self._rv = rv.json
+        if self._bg:
+            rv = await self._bg
+            self._rv = rv.json
+        else:
+            # error happened before the first write
+            self._rv = None
         self._bg = None
         self._queue = None
         self._offset = None
@@ -398,7 +402,9 @@ class GoogleWritableFile(WritableFile):
         feed.result()
         return len(chunk)
 
-    async def node(self) -> Node:
+    async def node(self) -> Optional[Node]:
+        if not self._rv:
+            return None
         node = await self._get_node(self._rv['id'])
         return node
 
