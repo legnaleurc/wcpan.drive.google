@@ -325,9 +325,9 @@ class GoogleReadableFile(ReadableFile):
                 firstError = e.json['error']['errors'][0]
                 reason = firstError['reason']
                 if reason == 'cannotDownloadAbusiveFile':
-                    raise DownloadAbusiveFileError(reason['message']) from e
+                    raise DownloadAbusiveFileError(firstError['message']) from e
                 if reason == 'invalidAbuseAcknowledgment':
-                    raise InvalidAbuseFlagError(reason['message']) from e
+                    raise InvalidAbuseFlagError(firstError['message']) from e
             raise
 
     async def _open_response(self) -> None:
