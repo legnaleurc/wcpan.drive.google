@@ -20,10 +20,9 @@ from typing import (
 
 import aiohttp
 from wcpan.logger import DEBUG, EXCEPTION, INFO, WARNING
-from wcpan.drive.core.exceptions import DriveError
 
 from .util import OAuth2Storage, OAuth2Manager
-from .exceptions import NetworkError
+from .exceptions import NetworkError, ResponseError
 
 
 BACKOFF_FACTOR = 2
@@ -309,30 +308,6 @@ async def to_json_response(response: aiohttp.ClientResponse) -> JSONResponse:
         else:
             json_ = await response.text()
     return JSONResponse(response, json_)
-
-
-class ResponseError(DriveError):
-
-    def __init__(self,
-        status: str,
-        response: aiohttp.ClientResponse,
-        json_: Dict[str, Any],
-    ) -> None:
-        self._status = status
-        self._response = response
-        self._message = f'{self.status} {self._response.reason} - {json_}'
-        self._json = json_
-
-    def __str__(self) -> str:
-        return self._message
-
-    @property
-    def status(self) -> str:
-        return self._status
-
-    @property
-    def json(self) -> Any:
-        return self._json
 
 
 class Status(enum.Enum):

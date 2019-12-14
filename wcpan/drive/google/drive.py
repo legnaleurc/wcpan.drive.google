@@ -33,7 +33,8 @@ from wcpan.drive.core.exceptions import (
 from wcpan.drive.core.types import ChangeDict, Node, NodeDict, PrivateDict
 
 from .api import Client
-from .network import ResponseError, Response, NetworkError
+from .network import Response
+from .exceptions import ResponseError, NetworkError
 from .util import FOLDER_MIME_TYPE, OAuth2Storage
 
 
