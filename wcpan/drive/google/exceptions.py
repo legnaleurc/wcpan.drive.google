@@ -1,7 +1,7 @@
 from typing import Dict, Any
 import aiohttp
 
-from wcpan.drive.core.exceptions import DriveError
+from wcpan.drive.core.exceptions import DriveError, DownloadError
 
 
 class AuthenticationError(DriveError):
@@ -61,3 +61,11 @@ class ResponseError(DriveError):
     @property
     def json(self) -> Any:
         return self._json
+
+
+class DownloadAbusiveFileError(DownloadError):
+    pass
+
+
+class InvalidAbuseFlagError(DownloadError):
+    pass

@@ -34,7 +34,12 @@ from wcpan.drive.core.types import ChangeDict, Node, NodeDict, PrivateDict
 
 from .api import Client
 from .network import Response
-from .exceptions import ResponseError, NetworkError
+from .exceptions import (
+    DownloadAbusiveFileError,
+    InvalidAbuseFlagError,
+    NetworkError,
+    ResponseError,
+)
 from .util import FOLDER_MIME_TYPE, OAuth2Storage
 
 
@@ -307,8 +312,20 @@ class GoogleReadableFile(ReadableFile):
         return self._node
 
     async def _download_from_offset(self) -> 'aiohttp.StreamResponse':
-        return await self._download(file_id=self._node.id_,
-                                    range_=(self._offset, self._node.size))
+        try:
+            return await self._download(
+                file_id=self._node.id_,
+                range_=(self._offset, self._node.size),
+            )
+        except ResponseError as e:
+            if e.status == '403':
+                firstError = e.json['error']['errors'][0]
+                reason = firstError['reason']
+                if reason == 'cannotDownloadAbusiveFile':
+                    raise DownloadAbusiveFileError(reason['message']) from e
+                if reason == 'invalidAbuseAcknowledgment':
+                    raise InvalidAbuseFlagError(reason['message']) from e
+            raise
 
     async def _open_response(self) -> None:
         if not self._response:
