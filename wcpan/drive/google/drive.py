@@ -311,11 +311,14 @@ class GoogleReadableFile(ReadableFile):
     async def node(self) -> Node:
         return self._node
 
-    async def _download_from_offset(self) -> 'aiohttp.StreamResponse':
+    async def _download_from_offset(self,
+        allow_abuse: bool,
+    ) -> 'aiohttp.StreamResponse':
         try:
             return await self._download(
                 file_id=self._node.id_,
                 range_=(self._offset, self._node.size),
+                acknowledge_abuse=allow_abuse,
             )
         except ResponseError as e:
             if e.status == '403':
@@ -330,8 +333,16 @@ class GoogleReadableFile(ReadableFile):
     async def _open_response(self) -> None:
         if not self._response:
             async with contextlib.AsyncExitStack() as stack:
-                self._response = await stack.enter_async_context(
-                    await self._download_from_offset())
+                # FIXME automatically accept abuse files for now
+                try:
+                    self._response = await stack.enter_async_context(
+                        await self._download_from_offset(False),
+                    )
+                except DownloadAbusiveFileError:
+                    self._response = await stack.enter_async_context(
+                        await self._download_from_offset(True),
+                    )
+
                 self._rsps = stack.pop_all()
 
     async def _close_response(self) -> None:
