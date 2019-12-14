@@ -277,15 +277,27 @@ class GoogleReadableFile(ReadableFile):
         await self._close_response()
 
     async def __aiter__(self) -> AsyncIterator[bytes]:
+        # no need to make request for an empty file
+        if self._node.size <= 0:
+            return
+
         await self._open_response()
         async for chunk in self._response.chunks():
             yield chunk
 
     async def read(self, length: int) -> bytes:
+        # nothing to read from an empty file
+        if self._node.size <= 0:
+            return b''
+
         await self._open_response()
         return await self._response.read(length)
 
     async def seek(self, offset: int) -> None:
+        # nop for seeking an empty file
+        if self._node.size <= 0:
+            return
+
         self._offset = offset
         await self._close_response()
         await self._open_response()
