@@ -23,6 +23,7 @@ from wcpan.logger import DEBUG, EXCEPTION, INFO, WARNING
 from wcpan.drive.core.exceptions import DriveError
 
 from .util import OAuth2Storage, OAuth2Manager
+from .exceptions import NetworkError
 
 
 BACKOFF_FACTOR = 2
@@ -332,10 +333,6 @@ class ResponseError(DriveError):
     @property
     def json(self) -> Any:
         return self._json
-
-
-class NetworkError(DriveError):
-    pass
 
 
 class Status(enum.Enum):

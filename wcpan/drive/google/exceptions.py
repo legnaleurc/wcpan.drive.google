@@ -30,3 +30,7 @@ class CredentialFileError(DriveError):
 
 class TokenFileError(DriveError):
     pass
+
+
+class NetworkError(DriveError):
+    pass
