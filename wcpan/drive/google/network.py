@@ -22,7 +22,12 @@ import aiohttp
 from wcpan.logger import DEBUG, EXCEPTION, INFO, WARNING
 
 from .util import OAuth2Storage, OAuth2Manager
-from .exceptions import NetworkError, ResponseError
+from .exceptions import (
+    DownloadAbusiveFileError,
+    InvalidAbuseFlagError,
+    NetworkError,
+    ResponseError,
+)
 
 
 BACKOFF_FACTOR = 2
@@ -154,7 +159,7 @@ class Network(object):
                 continue
 
             json_ = await response.json()
-            raise ResponseError(status, response, json_)
+            self._raiseError(status, response, json_)
 
     async def _prepare_kwargs(self,
         method: str,
@@ -225,6 +230,20 @@ class Network(object):
         s_delay = min(100, s_delay)
         DEBUG('wcpan.drive.google') << 'backoff for' << s_delay
         await asyncio.sleep(s_delay)
+
+    def _raiseError(self,
+        status: str,
+        response: aiohttp.ClientResponse,
+        json_: Dict[str, Any],
+    ) -> None:
+        if status == '403':
+            firstError = json_['error']['errors'][0]
+            reason = firstError['reason']
+            if reason == 'cannotDownloadAbusiveFile':
+                raise DownloadAbusiveFileError(firstError['message'])
+            if reason == 'invalidAbuseAcknowledgment':
+                raise InvalidAbuseFlagError(firstError['message'])
+        raise ResponseError(status, response, json_)
 
 
 class Request(object):

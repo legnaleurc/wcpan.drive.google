@@ -34,12 +34,7 @@ from wcpan.drive.core.types import ChangeDict, Node, NodeDict, PrivateDict
 
 from .api import Client
 from .network import Response
-from .exceptions import (
-    DownloadAbusiveFileError,
-    InvalidAbuseFlagError,
-    NetworkError,
-    ResponseError,
-)
+from .exceptions import DownloadAbusiveFileError, NetworkError, ResponseError
 from .util import FOLDER_MIME_TYPE, OAuth2Storage
 
 
@@ -311,39 +306,28 @@ class GoogleReadableFile(ReadableFile):
     async def node(self) -> Node:
         return self._node
 
-    async def _download_from_offset(self,
-        allow_abuse: bool,
-    ) -> 'aiohttp.StreamResponse':
+    async def _download_from_offset(self) -> 'aiohttp.StreamResponse':
         try:
             return await self._download(
                 file_id=self._node.id_,
                 range_=(self._offset, self._node.size),
-                acknowledge_abuse=allow_abuse,
+                acknowledge_abuse=False,
             )
-        except ResponseError as e:
-            if e.status == '403':
-                firstError = e.json['error']['errors'][0]
-                reason = firstError['reason']
-                if reason == 'cannotDownloadAbusiveFile':
-                    raise DownloadAbusiveFileError(firstError['message']) from e
-                if reason == 'invalidAbuseAcknowledgment':
-                    raise InvalidAbuseFlagError(firstError['message']) from e
-            raise
+        except DownloadAbusiveFileError:
+            # FIXME automatically accept abuse files for now
+            WARNING('wcpan.drive.google') << f'{self._node.id_} is an abusive file'
+            return await self._download(
+                file_id=self._node.id_,
+                range_=(self._offset, self._node.size),
+                acknowledge_abuse=True,
+            )
 
     async def _open_response(self) -> None:
         if not self._response:
             async with contextlib.AsyncExitStack() as stack:
-                # FIXME automatically accept abuse files for now
-                try:
-                    self._response = await stack.enter_async_context(
-                        await self._download_from_offset(False),
-                    )
-                except DownloadAbusiveFileError:
-                    WARNING('wcpan.drive.google') << f'{self._node.id_} is an abusive file'
-                    self._response = await stack.enter_async_context(
-                        await self._download_from_offset(True),
-                    )
-
+                self._response = await stack.enter_async_context(
+                    await self._download_from_offset(),
+                )
                 self._rsps = stack.pop_all()
 
     async def _close_response(self) -> None:
