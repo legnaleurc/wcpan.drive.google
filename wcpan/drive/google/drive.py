@@ -15,7 +15,7 @@ from typing import (
     Tuple,
 )
 
-from wcpan.logger import INFO, DEBUG, EXCEPTION
+from wcpan.logger import INFO, DEBUG, EXCEPTION, WARNING
 
 from wcpan.drive.core.abc import (
     RemoteDriver,
@@ -339,6 +339,7 @@ class GoogleReadableFile(ReadableFile):
                         await self._download_from_offset(False),
                     )
                 except DownloadAbusiveFileError:
+                    WARNING('wcpan.drive.google') << f'{self._node.id_} is an abusive file'
                     self._response = await stack.enter_async_context(
                         await self._download_from_offset(True),
                     )
