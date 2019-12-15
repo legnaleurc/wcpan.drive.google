@@ -139,8 +139,10 @@ class GoogleDriver(RemoteDriver):
         exist_ok: bool,
     ) -> Node:
         # do not create again if there is a same file
-        node = await self.fetch_node_by_name_from_parent_id(folder_name,
-                                                            parent_node.id_)
+        node = await self._fetch_node_by_name_from_parent_id(
+            folder_name,
+            parent_node.id_,
+        )
         if node:
             if exist_ok:
                 INFO('wcpan.drive.google') << 'skipped (existing)' << folder_name
@@ -153,7 +155,7 @@ class GoogleDriver(RemoteDriver):
                                      parent_id=parent_node.id_,
                                      app_properties=private)
         rv = rv.json
-        node = await self.fetch_node_by_id(rv['id'])
+        node = await self._fetch_node_by_id(rv['id'])
 
         return node
 
@@ -165,26 +167,62 @@ class GoogleDriver(RemoteDriver):
         private: Optional[PrivateDict],
     ) -> WritableFile:
         # do not upload if remote exists a same file
-        node = await self.fetch_node_by_name_from_parent_id(file_name,
-                                                            parent_node.id_)
+        node = await self._fetch_node_by_name_from_parent_id(
+            file_name,
+            parent_node.id_,
+        )
         if node:
             raise NodeConflictedError(node)
 
         api = self._client.files
-        wf = GoogleWritableFile(initiate=api.initiate_uploading,
-                                upload=api.upload,
-                                get_status=api.get_upload_status,
-                                touch=api.create_empty_file,
-                                get_node=self.fetch_node_by_id,
-                                parent_id=parent_node.id_,
-                                name=file_name,
-                                timeout=self._timeout,
-                                size=file_size,
-                                mime_type=mime_type,
-                                private=private)
+        wf = GoogleWritableFile(
+            initiate=api.initiate_uploading,
+            upload=api.upload,
+            get_status=api.get_upload_status,
+            touch=api.create_empty_file,
+            get_node=self._fetch_node_by_id,
+            parent_id=parent_node.id_,
+            name=file_name,
+            timeout=self._timeout,
+            size=file_size,
+            mime_type=mime_type,
+            private=private,
+        )
         return wf
 
-    async def fetch_node_by_name_from_parent_id(self,
+    async def trash_node(self, node: Node) -> None:
+        await self._client.files.update(node.id_, trashed=True)
+
+    async def rename_node(self,
+        node: Node,
+        new_parent: Optional[Node],
+        new_name: Optional[str],
+    ) -> Node:
+        fnbnfpi = self._fetch_node_by_name_from_parent_id
+        parent_id = node.parent_id if not new_parent else new_parent.id_
+        name = node.name if not new_name else new_name
+        # make sure it does not conflict to existing node
+        new_node = await fnbnfpi(name, parent_id)
+        if new_node:
+            raise NodeConflictedError(new_node)
+
+        kwargs = {
+            'file_id': node.id_,
+        }
+        if new_name:
+            kwargs['name'] = new_name
+        if new_parent and new_parent.id_ != node.parent_id:
+            kwargs['add_parents'] = [new_parent.id_]
+            kwargs['remove_parents'] = [node.parent_id]
+
+        dummy_rv = await self._client.files.update(**kwargs)
+        node = await self._fetch_node_by_id(node.id_)
+        return node
+
+    async def get_hasher(self) -> Hasher:
+        return PicklableHasher()
+
+    async def _fetch_node_by_name_from_parent_id(self,
         name: str,
         parent_id: str,
     ) -> Node:
@@ -213,7 +251,7 @@ class GoogleDriver(RemoteDriver):
         node = node_from_api(files[0])
         return node
 
-    async def fetch_node_by_id(self, node_id: str) -> Node:
+    async def _fetch_node_by_id(self, node_id: str) -> Node:
         try:
             rv = await self._client.files.get(node_id, fields=FILE_FIELDS)
         except ResponseError as e:
@@ -224,42 +262,10 @@ class GoogleDriver(RemoteDriver):
         node = node_from_api(rv)
         return node
 
-    async def trash_node(self, node: Node) -> None:
-        await self._client.files.update(node.id_, trashed=True)
-
-    async def rename_node(self,
-        node: Node,
-        new_parent: Optional[Node],
-        new_name: Optional[str],
-    ) -> Node:
-        fnbnfpi = self.fetch_node_by_name_from_parent_id
-        parent_id = node.parent_id if not new_parent else new_parent.id_
-        name = node.name if not new_name else new_name
-        # make sure it does not conflict to existing node
-        new_node = await fnbnfpi(name, parent_id)
-        if new_node:
-            raise NodeConflictedError(new_node)
-
-        kwargs = {
-            'file_id': node.id_,
-        }
-        if new_name:
-            kwargs['name'] = new_name
-        if new_parent and new_parent.id_ != node.parent_id:
-            kwargs['add_parents'] = [new_parent.id_]
-            kwargs['remove_parents'] = [node.parent_id]
-
-        dummy_rv = await self._client.files.update(**kwargs)
-        node = await self.fetch_node_by_id(node.id_)
-        return node
-
-    async def set_node_parent_by_id(self, node: Node, parent_id: str) -> None:
+    async def _set_node_parent_by_id(self, node: Node, parent_id: str) -> None:
         remove_parents = [_ for _ in node.parent_list if _ != parent_id]
         api = self._client.files
         await api.update(node.id_, remove_parents=remove_parents)
-
-    async def get_hasher(self) -> Hasher:
-        return PicklableHasher()
 
 
 class GoogleReadableFile(ReadableFile):
