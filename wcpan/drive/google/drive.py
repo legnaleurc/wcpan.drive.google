@@ -30,7 +30,13 @@ from wcpan.drive.core.exceptions import (
     ParentNotFoundError,
     UploadError,
 )
-from wcpan.drive.core.types import ChangeDict, Node, NodeDict, PrivateDict
+from wcpan.drive.core.types import (
+    ChangeDict,
+    MediaInfo,
+    Node,
+    NodeDict,
+    PrivateDict,
+)
 
 from .api import Client
 from .network import Response
@@ -53,8 +59,11 @@ FILE_FIELDS = ','.join([
     'size',
     'shared',
     'ownedByMe',
-    'imageMediaMetadata',
-    'videoMediaMetadata',
+    'imageMediaMetadata/width',
+    'imageMediaMetadata/height',
+    'videoMediaMetadata/width',
+    'videoMediaMetadata/height',
+    'videoMediaMetadata/durationMillis',
     'appProperties',
 ])
 CHANGE_FIELDS = ','.join([
@@ -164,6 +173,7 @@ class GoogleDriver(RemoteDriver):
         file_name: str,
         file_size: Optional[int],
         mime_type: Optional[str],
+        media_info: Optional[MediaInfo],
         private: Optional[PrivateDict],
     ) -> WritableFile:
         # do not upload if remote exists a same file
@@ -186,6 +196,7 @@ class GoogleDriver(RemoteDriver):
             timeout=self._timeout,
             size=file_size,
             mime_type=mime_type,
+            media_info=media_info,
             private=private,
         )
         return wf
@@ -266,6 +277,14 @@ class GoogleDriver(RemoteDriver):
         remove_parents = [_ for _ in node.parent_list if _ != parent_id]
         api = self._client.files
         await api.update(node.id_, remove_parents=remove_parents)
+
+    async def _set_node_image_metadata(self, node: Node, width: int, height: int) -> None:
+        api = self._client.files
+        await api.update(node.id_, image_width=width, image_height=height)
+
+    async def _set_node_video_metadata(self, node: Node, width: int, height: int, ms_duration: int) -> None:
+        api = self._client.files
+        await api.update(node.id_, video_width=width, video_height=height, video_ms_duration=ms_duration)
 
 
 class GoogleReadableFile(ReadableFile):
@@ -356,6 +375,7 @@ class GoogleWritableFile(WritableFile):
         timeout: float,
         size: int = None,
         mime_type: str = None,
+        media_info: MediaInfo = None,
         private: PrivateDict = None,
     ) -> None:
         self._initiate = initiate
@@ -369,6 +389,7 @@ class GoogleWritableFile(WritableFile):
         self._timeout = timeout
         self._size = size
         self._mime_type = mime_type
+        self._media_info = media_info
         self._url = None
         self._offset = None
         self._queue = asyncio.Queue(maxsize=1)
@@ -464,20 +485,26 @@ class GoogleWritableFile(WritableFile):
             self._queue.task_done()
 
     async def _get_session_url(self) -> str:
-        rv = await self._initiate(file_name=self._name,
-                                  total_file_size=self._size,
-                                  parent_id=self._parent_id,
-                                  mime_type=self._mime_type,
-                                  app_properties=self._private)
+        rv = await self._initiate(
+            file_name=self._name,
+            total_file_size=self._size,
+            parent_id=self._parent_id,
+            mime_type=self._mime_type,
+            media_info=self._media_info,
+            app_properties=self._private,
+        )
         url = rv.get_header('Location')
         return url
 
     async def _upload_to(self) -> 'aiohttp.ClientResponse':
         try:
-            rv = await self._upload(self._url, producer=self._produce,
-                                    offset=self._offset,
-                                    total_file_size=self._size,
-                                    mime_type=self._mime_type)
+            rv = await self._upload(
+                self._url,
+                producer=self._produce,
+                offset=self._offset,
+                total_file_size=self._size,
+                mime_type=self._mime_type,
+            )
         except ResponseError as e:
             if e.status == '404':
                 raise UploadError('the upload session has been expired') from e
@@ -565,28 +592,48 @@ def normalize_changes(
 
 def dict_from_api(data: GoogleFileDict) -> NodeDict:
     id_ = data['id']
+
     is_folder = data['mimeType'] == FOLDER_MIME_TYPE
+
     size = data.get('size', None)
     if size is not None:
         size = int(size)
+
+    private = data.get('appProperties', None)
+
     image = None
-    if 'imageMediaMetadata' in data:
+    if private and 'image' in private:
+        width, height = private['image'].split(' ')
+        image = {
+            'width': int(width),
+            'height': int(height),
+        }
+        del private['image']
+    if not image and 'imageMediaMetadata' in data:
         image = {
             'width': data['imageMediaMetadata']['width'],
             'height': data['imageMediaMetadata']['height'],
         }
+
     video = None
-    if 'videoMediaMetadata' in data:
+    if private and 'video' in private:
+        width, height, ms_duration = private['video'].split(' ')
+        video = {
+            'width': int(width),
+            'height': int(height),
+            'ms_duration': int(ms_duration),
+        }
+        del private['video']
+    if not video and 'videoMediaMetadata' in data:
         video = {
             'width': data['videoMediaMetadata']['width'],
             'height': data['videoMediaMetadata']['height'],
             'ms_duration': data['videoMediaMetadata']['durationMillis'],
         }
-    name = data['name']
-    private = data.get('appProperties', None)
+
     return {
         'id': id_,
-        'name': name,
+        'name': data['name'],
         'trashed': data['trashed'],
         'created': data['createdTime'],
         'modified': data['modifiedTime'],

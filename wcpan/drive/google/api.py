@@ -3,6 +3,7 @@ import json
 from typing import List, Tuple, Dict
 
 import arrow
+from wcpan.drive.core.types import MediaInfo
 
 from .network import Network, Response, ContentProducer
 from .util import FOLDER_MIME_TYPE, OAuth2Storage
@@ -180,6 +181,7 @@ class Files(object):
         *,
         parent_id: str = None,
         mime_type: str = None,
+        media_info: MediaInfo = None,
         app_properties: Dict[str, str] = None,
     ) -> Response:
         if not file_name:
@@ -192,8 +194,19 @@ class Files(object):
         }
         if parent_id is not None:
             metadata['parents'] = [parent_id]
+
+        props = {}
+        if app_properties:
+            props.update(app_properties)
+        if media_info and media_info.is_image:
+            props['image'] = f'{media_info.width} {media_info.height}'
+        if media_info and media_info.is_video:
+            props['video'] = f'{media_info.width} {media_info.height} {media_info.ms_duration}'
+        if props:
+            metadata['appProperties'] = props
         if app_properties:
             metadata['appProperties'] = app_properties
+
         metadata = json.dumps(metadata)
         metadata = metadata.encode('utf-8')
         headers = {
@@ -318,11 +331,16 @@ class Files(object):
     async def update(self,
         file_id: str,
         *,
-        name: str = None,
         add_parents: List[str] = None,
         remove_parents: List[str] = None,
+        name: str = None,
         trashed: bool = None,
         app_properties: Dict[str, str] = None,
+        image_width: int = None,
+        image_height: int = None,
+        video_width: int = None,
+        video_height: int = None,
+        video_ms_duration: int = None,
     ) -> Response:
         args = {}
         if add_parents is not None:
@@ -335,8 +353,16 @@ class Files(object):
             metadata['name'] = name
         if trashed is not None:
             metadata['trashed'] = trashed
+
+        props = {}
         if app_properties:
-            metadata['appProperties'] = app_properties
+            props.update(app_properties)
+        if image_width is not None and image_height is not None:
+            props['image'] = f'{image_width} {image_height}'
+        if video_width is not None and video_height is not None and video_ms_duration is not None:
+            props['video'] = f'{video_width} {video_height} {video_ms_duration}'
+        if props:
+            metadata['appProperties'] = props
 
         if not args and not metadata:
             raise ValueError('not enough parameter')
