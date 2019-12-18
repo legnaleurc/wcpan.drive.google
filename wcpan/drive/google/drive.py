@@ -280,11 +280,21 @@ class GoogleDriver(RemoteDriver):
 
     async def _set_node_image_metadata(self, node: Node, width: int, height: int) -> None:
         api = self._client.files
-        await api.update(node.id_, image_width=width, image_height=height)
+        await api.update(
+            node.id_,
+            media_info=MediaInfo.image(width=width, height=height),
+        )
 
     async def _set_node_video_metadata(self, node: Node, width: int, height: int, ms_duration: int) -> None:
         api = self._client.files
-        await api.update(node.id_, video_width=width, video_height=height, video_ms_duration=ms_duration)
+        await api.update(
+            node.id_,
+            media_info=MediaInfo.video(
+                width=width,
+                height=height,
+                ms_duration=ms_duration,
+            ),
+        )
 
 
 class GoogleReadableFile(ReadableFile):

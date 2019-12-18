@@ -336,11 +336,7 @@ class Files(object):
         name: str = None,
         trashed: bool = None,
         app_properties: Dict[str, str] = None,
-        image_width: int = None,
-        image_height: int = None,
-        video_width: int = None,
-        video_height: int = None,
-        video_ms_duration: int = None,
+        media_info: MediaInfo = None,
     ) -> Response:
         args = {}
         if add_parents is not None:
@@ -357,10 +353,10 @@ class Files(object):
         props = {}
         if app_properties:
             props.update(app_properties)
-        if image_width is not None and image_height is not None:
-            props['image'] = f'{image_width} {image_height}'
-        if video_width is not None and video_height is not None and video_ms_duration is not None:
-            props['video'] = f'{video_width} {video_height} {video_ms_duration}'
+        if media_info and media_info.is_image:
+            props['image'] = f'{media_info.width} {media_info.height}'
+        if media_info and media_info.is_video:
+            props['video'] = f'{media_info.width} {media_info.height} {media_info.ms_duration}'
         if props:
             metadata['appProperties'] = props
 
