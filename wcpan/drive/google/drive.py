@@ -537,7 +537,12 @@ class GoogleWritableFile(WritableFile):
         return rv
 
     async def _touch_empty(self) -> 'aiohttp.ClientResponse':
-        rv = await self._touch(self._name, self._parent_id, self._mime_type, self._private)
+        rv = await self._touch(
+            self._name,
+            parent_id=self._parent_id,
+            mime_type=self._mime_type,
+            app_properties=self._private,
+        )
         return rv
 
 
