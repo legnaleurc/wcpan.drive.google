@@ -204,8 +204,6 @@ class Files(object):
             props['video'] = f'{media_info.width} {media_info.height} {media_info.ms_duration}'
         if props:
             metadata['appProperties'] = props
-        if app_properties:
-            metadata['appProperties'] = app_properties
 
         metadata = json.dumps(metadata)
         metadata = metadata.encode('utf-8')
