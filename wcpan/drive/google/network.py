@@ -140,7 +140,7 @@ class Network(object):
         while True:
             await self._wait_backoff()
 
-            f = await self._session.request(**kwargs)
+            f = self._session.request(**kwargs)
             if use_timeout:
                 f = asyncio.wait_for(f, self._timeout)
             try:
