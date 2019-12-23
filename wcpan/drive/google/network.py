@@ -37,14 +37,6 @@ ContentProducer = Callable[[], AsyncGenerator[bytes, None]]
 ReadableContent = Union[bytes, ContentProducer]
 
 
-def network_timeout(network_method):
-    @functools.wraps(network_method)
-    async def wrapper(self, *args, **kwargs):
-        return await asyncio.wait_for(network_method(self, *args, **kwargs),
-                                      self._timeout)
-    return wrapper
-
-
 class Network(object):
 
     def __init__(self, storage: OAuth2Storage, timeout: int) -> None:
