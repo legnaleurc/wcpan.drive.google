@@ -221,7 +221,7 @@ class Network(object):
         seed = random.random()
         power = 2 ** self._backoff_level
         s_delay = math.floor(seed * power * BACKOFF_FACTOR)
-        s_delay = min(100, s_delay)
+        s_delay = min(self._timeout, s_delay)
         DEBUG('wcpan.drive.google') << 'backoff for' << s_delay
         await asyncio.sleep(s_delay)
 
