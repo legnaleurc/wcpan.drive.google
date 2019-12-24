@@ -31,7 +31,7 @@ from .exceptions import (
 
 
 BACKOFF_FACTOR = 2
-BACKOFF_STATUSES = set(('403', '429', '500', '502', '503', '504'))
+BACKOFF_STATUSES = set(('403', '408', '429', '500', '502', '503', '504'))
 
 ContentProducer = Callable[[], AsyncGenerator[bytes, None]]
 ReadableContent = Union[bytes, ContentProducer]
