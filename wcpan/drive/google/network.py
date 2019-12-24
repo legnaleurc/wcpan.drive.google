@@ -152,7 +152,13 @@ class Network(object):
             if rv == Status.BACKOFF:
                 continue
 
-            json_ = await response.json()
+            try:
+                json_ = await response.json()
+            except aiohttp.ContentTypeError as e:
+                text = await response.text()
+                EXCEPTION('wcpan.drive.google', e) << text
+                raise
+
             self._raiseError(status, response, json_)
 
     async def _prepare_kwargs(self,
