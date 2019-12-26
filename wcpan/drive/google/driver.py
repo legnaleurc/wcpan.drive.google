@@ -36,6 +36,7 @@ from wcpan.drive.core.types import (
     Node,
     NodeDict,
     PrivateDict,
+    ReadOnlyContext,
 )
 
 from .api import Client
@@ -79,13 +80,9 @@ class GoogleDriver(RemoteDriver):
     def get_version_range(cls):
         return (1, 1)
 
-    def __init__(self,
-        config_path: pathlib.Path,
-        data_path: pathlib.Path,
-        timeout: int = 60,
-    ) -> None:
-        self._storage = OAuth2Storage(config_path, data_path)
-        self._timeout = timeout
+    def __init__(self, context: ReadOnlyContext) -> None:
+        self._storage = OAuth2Storage(context.config_path, context.data_path)
+        self._timeout = 60
         self._client = None
         self._raii = None
 
