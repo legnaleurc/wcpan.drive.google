@@ -322,6 +322,25 @@ class GoogleDriver(RemoteDriver):
 
         return node
 
+    async def _has_remote_children(self, parent: Node) -> Node:
+        query = ' and '.join([
+            f"'{parent.id_}' in parents",
+        ])
+        fields = f'files({FILE_FIELDS})'
+        try:
+            rv = await self._client.files.list_(q=query, fields=fields)
+        except ResponseError as e:
+            if e.status == '404':
+                raise ParentNotFoundError(parent.id_) from e
+            raise
+
+        rv = rv.json
+        files = rv['files']
+        if not files:
+            return False
+        else:
+            return True
+
 
 class GoogleReadableFile(ReadableFile):
 
