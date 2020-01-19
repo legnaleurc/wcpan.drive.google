@@ -72,6 +72,10 @@ CHANGE_FIELDS = ','.join([
     'newStartPageToken',
     f'changes(fileId,removed,file({FILE_FIELDS}))',
 ])
+LIST_FIELDS = ','.join([
+    'nextPageToken',
+    f'files({FILE_FIELDS})',
+])
 
 
 class GoogleDriver(RemoteDriver):
@@ -326,16 +330,27 @@ class GoogleDriver(RemoteDriver):
         query = ' and '.join([
             f"'{parent_id}' in parents",
         ])
-        fields = f'files({FILE_FIELDS})'
+        page_token = None
+        files = []
         try:
-            rv = await self._client.files.list_(q=query, fields=fields)
+            while True:
+                rv = await self._client.files.list_(
+                    q=query,
+                    fields=LIST_FIELDS,
+                    page_size=1000,
+                    page_token=page_token,
+                )
+                rv = rv.json
+                files.extend(rv['files'])
+                page_token = rv.get('nextPageToken', None)
+                if not page_token:
+                    break
         except ResponseError as e:
             if e.status == '404':
                 raise ParentNotFoundError(parent_id) from e
             raise
 
-        rv = rv.json
-        node_list = [node_from_api(_) for _ in rv['files']]
+        node_list = [node_from_api(_) for _ in files]
         return node_list
 
 
