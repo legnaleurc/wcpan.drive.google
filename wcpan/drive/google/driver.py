@@ -293,10 +293,10 @@ class GoogleDriver(RemoteDriver):
             ),
         )
 
-    async def _force_update_node(self, name: str, parent: Node) -> None:
+    async def _force_update_node(self, name: str, parent_id: str) -> None:
         safe_name = re.sub(r"[\\']", r"\\\g<0>", name)
         query = ' and '.join([
-            f"'{parent.id_}' in parents",
+            f"'{parent_id}' in parents",
             f"name = '{safe_name}'",
         ])
         fields = f'files({FILE_FIELDS})'
@@ -307,7 +307,7 @@ class GoogleDriver(RemoteDriver):
                 DEBUG('wcpan.drive.google') << 'invalid query string:' << query
                 raise InvalidNameError(name) from e
             if e.status == '404':
-                raise ParentNotFoundError(parent.id_) from e
+                raise ParentNotFoundError(parent_id) from e
             raise
 
         rv = rv.json
@@ -322,24 +322,21 @@ class GoogleDriver(RemoteDriver):
 
         return node
 
-    async def _has_remote_children(self, parent: Node) -> Node:
+    async def _fetch_children(self, parent_id: str) -> List[Node]:
         query = ' and '.join([
-            f"'{parent.id_}' in parents",
+            f"'{parent_id}' in parents",
         ])
         fields = f'files({FILE_FIELDS})'
         try:
             rv = await self._client.files.list_(q=query, fields=fields)
         except ResponseError as e:
             if e.status == '404':
-                raise ParentNotFoundError(parent.id_) from e
+                raise ParentNotFoundError(parent_id) from e
             raise
 
         rv = rv.json
-        files = rv['files']
-        if not files:
-            return False
-        else:
-            return True
+        node_list = [node_from_api(_) for _ in rv['files']]
+        return node_list
 
 
 class GoogleReadableFile(ReadableFile):
