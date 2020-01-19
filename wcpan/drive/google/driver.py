@@ -297,34 +297,9 @@ class GoogleDriver(RemoteDriver):
             ),
         )
 
-    async def _force_update_node(self, name: str, parent_id: str) -> None:
-        safe_name = re.sub(r"[\\']", r"\\\g<0>", name)
-        query = ' and '.join([
-            f"'{parent_id}' in parents",
-            f"name = '{safe_name}'",
-        ])
-        fields = f'files({FILE_FIELDS})'
-        try:
-            rv = await self._client.files.list_(q=query, fields=fields)
-        except ResponseError as e:
-            if e.status == '400':
-                DEBUG('wcpan.drive.google') << 'invalid query string:' << query
-                raise InvalidNameError(name) from e
-            if e.status == '404':
-                raise ParentNotFoundError(parent_id) from e
-            raise
-
-        rv = rv.json
-        files = rv['files']
-        if not files:
-            return None
-
-        node = node_from_api(files[0])
-        if not node.trashed:
-            await self.trash_node(node)
-        await self._client.files.update(node.id_, trashed=False)
-
-        return node
+    async def _force_update_by_id(self, node_id: str) -> None:
+        await self._client.files.update(node_id, trashed=True)
+        await self._client.files.update(node_id, trashed=False)
 
     async def _fetch_children(self, parent_id: str) -> List[Node]:
         query = ' and '.join([
