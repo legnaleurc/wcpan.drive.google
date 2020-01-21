@@ -279,24 +279,6 @@ class GoogleDriver(RemoteDriver):
         api = self._client.files
         await api.update(node.id_, remove_parents=remove_parents)
 
-    async def _set_node_image_metadata(self, node: Node, width: int, height: int) -> None:
-        api = self._client.files
-        await api.update(
-            node.id_,
-            media_info=MediaInfo.image(width=width, height=height),
-        )
-
-    async def _set_node_video_metadata(self, node: Node, width: int, height: int, ms_duration: int) -> None:
-        api = self._client.files
-        await api.update(
-            node.id_,
-            media_info=MediaInfo.video(
-                width=width,
-                height=height,
-                ms_duration=ms_duration,
-            ),
-        )
-
     async def _force_update_by_id(self, node_id: str) -> None:
         await self._client.files.update(node_id, trashed=True)
         await self._client.files.update(node_id, trashed=False)
