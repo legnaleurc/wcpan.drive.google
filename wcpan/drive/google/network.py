@@ -77,7 +77,7 @@ class Network(object):
                                                 body)
 
             try:
-                response = await self._request_loop(kwargs, True)
+                response = await self._request_loop(kwargs)
             except aiohttp.ClientConnectionError as e:
                 continue
 
@@ -96,12 +96,12 @@ class Network(object):
         body: ReadableContent = None,
     ) -> 'JSONResponse':
         kwargs = await self._prepare_kwargs(method, url, args, headers, body)
-        kwargs['timeout'] = 0.0
+        # NOTE Upload can take long time to send data, so we only set timeout
+        # for socket connection.
+        kwargs['timeout'] = aiohttp.ClientTimeout(sock_connect=self._timeout)
 
-        # NOTE Unlike download, upload cannot set timeout to the whole method.
-        # Instead we should set timeout on body callback.
         try:
-            response = await self._request_loop(kwargs, False)
+            response = await self._request_loop(kwargs)
         except aiohttp.ClientConnectionError as e:
             raise NetworkError() from e
 
@@ -117,10 +117,13 @@ class Network(object):
         while True:
             kwargs = await self._prepare_kwargs(method, url, args, headers,
                                                 body)
-            kwargs['timeout'] = 0.0
+            # NOTE Download can take long time to send data, so we only set
+            # timeout for socket connection.
+            kwargs['timeout'] = aiohttp.ClientTimeout(
+                sock_connect=self._timeout)
 
             try:
-                response = await self._request_loop(kwargs, True)
+                response = await self._request_loop(kwargs)
             except aiohttp.ClientConnectionError:
                 continue
 
@@ -128,16 +131,12 @@ class Network(object):
 
     async def _request_loop(self,
         kwargs: Dict[str, Any],
-        use_timeout: bool,
     ) -> aiohttp.ClientResponse:
         while True:
             await self._wait_backoff()
 
-            f = self._session.request(**kwargs)
-            if use_timeout:
-                f = asyncio.wait_for(f, self._timeout)
             try:
-                response = await f
+                response = await self._session.request(**kwargs)
             except aiohttp.ClientConnectionError:
                 self._adjust_backoff_level(True)
                 raise
