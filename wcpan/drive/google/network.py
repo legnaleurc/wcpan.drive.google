@@ -25,6 +25,7 @@ from .util import OAuth2Storage, OAuth2Manager
 from .exceptions import (
     DownloadAbusiveFileError,
     InvalidAbuseFlagError,
+    InvalidRangeError,
     NetworkError,
     ResponseError,
 )
@@ -243,6 +244,11 @@ class Network(object):
                 raise DownloadAbusiveFileError(firstError['message'])
             if reason == 'invalidAbuseAcknowledgment':
                 raise InvalidAbuseFlagError(firstError['message'])
+        elif status == '416':
+            firstError = json_['error']['errors'][0]
+            reason = firstError['reason']
+            if reason == 'requestedRangeNotSatisfiable':
+                raise InvalidRangeError(response.request_info.headers['Range'])
         raise ResponseError(status, response, json_)
 
 

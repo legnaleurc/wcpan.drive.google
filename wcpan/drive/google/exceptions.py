@@ -69,3 +69,7 @@ class DownloadAbusiveFileError(DownloadError):
 
 class InvalidAbuseFlagError(DownloadError):
     pass
+
+
+class InvalidRangeError(DownloadError):
+    pass
