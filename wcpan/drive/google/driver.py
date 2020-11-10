@@ -1,8 +1,6 @@
 import asyncio
-import concurrent.futures
 import contextlib
 import hashlib
-import pathlib
 import re
 from typing import (
     Any,
@@ -40,8 +38,7 @@ from wcpan.drive.core.types import (
 )
 
 from .api import Client
-from .network import Response
-from .exceptions import DownloadAbusiveFileError, NetworkError, ResponseError
+from .exceptions import DownloadAbusiveFileError, ResponseError
 from .util import FOLDER_MIME_TYPE, OAuth2Storage
 
 

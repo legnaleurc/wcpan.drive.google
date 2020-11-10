@@ -1,8 +1,6 @@
 import asyncio
 import contextlib
 import enum
-import functools
-import json
 import math
 import random
 from typing import (
@@ -12,14 +10,13 @@ from typing import (
     Callable,
     Dict,
     Generator,
-    List,
     Optional,
     Tuple,
     Union,
 )
 
 import aiohttp
-from wcpan.logger import DEBUG, EXCEPTION, INFO, WARNING
+from wcpan.logger import DEBUG, EXCEPTION, WARNING
 
 from .util import OAuth2Storage, OAuth2Manager
 from .exceptions import (
