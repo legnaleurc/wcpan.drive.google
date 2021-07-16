@@ -41,8 +41,8 @@ class Network(object):
         self._storage = storage
         self._timeout = timeout
         self._backoff_level = 0
-        self._session = None
-        self._oauth = None
+        self._session: aiohttp.ClientSession = None
+        self._oauth: OAuth2Manager = None
         self._raii = None
 
     async def __aenter__(self) -> 'Network':
@@ -133,6 +133,7 @@ class Network(object):
             await self._wait_backoff()
 
             try:
+                assert self._session is not None
                 response = await self._session.request(**kwargs)
             except aiohttp.ClientConnectionError:
                 self._adjust_backoff_level(True)
@@ -143,6 +144,7 @@ class Network(object):
             if rv == Status.OK:
                 return response
             if rv == Status.REFRESH:
+                assert self._oauth is not None
                 await self._oauth.renew_token()
                 await self._update_token_header(kwargs['headers'])
                 continue
@@ -188,6 +190,7 @@ class Network(object):
         return h
 
     async def _update_token_header(self, headers: Dict[str, str]) -> None:
+        assert self._oauth is not None
         token = await self._oauth.get_access_token()
         headers['Authorization'] = f'Bearer {token}'
 
