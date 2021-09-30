@@ -360,6 +360,14 @@ async def backoff_needed(
         if domain != 'usageLimits':
             return False
 
+    # the request timedout
+    if status == '408':
+        # NOTE somehow this error shows html instead of json
+        WARNING('wcpan.drive.google') << '408 request timed out'
+        # No need to backoff because in this case the whole request cannot be
+        # resumed at all.
+        return False
+
     return True
 
 
