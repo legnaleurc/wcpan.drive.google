@@ -79,7 +79,7 @@ class GoogleDriver(RemoteDriver):
 
     @classmethod
     def get_version_range(cls):
-        return (1, 1)
+        return (2, 2)
 
     def __init__(self, context: ReadOnlyContext) -> None:
         self._storage = OAuth2Storage(context.config_path, context.data_path)
@@ -98,6 +98,10 @@ class GoogleDriver(RemoteDriver):
         await self._raii.aclose()
         self._client = None
         self._raii = None
+
+    @property
+    def remote(self):
+        return None
 
     async def get_initial_check_point(self) -> str:
         return '1'
@@ -142,8 +146,9 @@ class GoogleDriver(RemoteDriver):
     async def create_folder(self,
         parent_node: Node,
         folder_name: str,
-        private: Optional[PrivateDict],
+        *,
         exist_ok: bool,
+        private: Optional[PrivateDict],
     ) -> Node:
         # do not create again if there is a same file
         node = await self._fetch_node_by_name_from_parent_id(
@@ -169,6 +174,7 @@ class GoogleDriver(RemoteDriver):
     async def upload(self,
         parent_node: Node,
         file_name: str,
+        *,
         file_size: Optional[int],
         mime_type: Optional[str],
         media_info: Optional[MediaInfo],
@@ -204,6 +210,7 @@ class GoogleDriver(RemoteDriver):
 
     async def rename_node(self,
         node: Node,
+        *,
         new_parent: Optional[Node],
         new_name: Optional[str],
     ) -> Node:
