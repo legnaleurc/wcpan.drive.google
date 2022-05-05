@@ -9,6 +9,7 @@ from .util import FOLDER_MIME_TYPE, OAuth2Manager
 
 
 API_ROOT = 'https://www.googleapis.com/drive/v3'
+UPLOAD_URI = 'https://www.googleapis.com/upload/drive/v3/files'
 
 
 class Client(object):
@@ -109,7 +110,6 @@ class Files(object):
     def __init__(self, network: Network) -> None:
         self._network = network
         self._root = API_ROOT + '/files'
-        self._upload_uri = 'https://www.googleapis.com/upload/drive/v3/files'
 
     # only for metadata
     async def get(self,
@@ -221,7 +221,7 @@ class Files(object):
             'uploadType': 'resumable',
         }
 
-        rv = await self._network.fetch('POST', self._upload_uri, args,
+        rv = await self._network.fetch('POST', UPLOAD_URI, args,
                                        headers=headers, body=metadata)
         return rv
 
