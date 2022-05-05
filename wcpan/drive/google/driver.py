@@ -6,15 +6,11 @@ from typing import (
     Any,
     AsyncGenerator,
     AsyncIterator,
-    Dict,
     Generator,
-    List,
     Optional,
-    Tuple,
 )
 
 from wcpan.logger import INFO, DEBUG, EXCEPTION, WARNING
-
 from wcpan.drive.core.abc import (
     RemoteDriver,
     ReadableFile,
@@ -39,10 +35,10 @@ from wcpan.drive.core.types import (
 
 from .api import Client
 from .exceptions import DownloadAbusiveFileError, ResponseError
-from .util import FOLDER_MIME_TYPE, OAuth2Storage
+from .util import FOLDER_MIME_TYPE, OAuth2Manager, OAuth2Storage
 
 
-GoogleFileDict = Dict[str, Any]
+GoogleFileDict = dict[str, Any]
 
 
 FILE_FIELDS = ','.join([
@@ -79,10 +75,11 @@ class GoogleDriver(RemoteDriver):
 
     @classmethod
     def get_version_range(cls):
-        return (2, 2)
+        return (3, 3)
 
     def __init__(self, context: ReadOnlyContext) -> None:
-        self._storage = OAuth2Storage(context.config_path, context.data_path)
+        storage = OAuth2Storage(context.config_path, context.data_path)
+        self._oauth = OAuth2Manager(storage)
         self._timeout = 60
         self._client = None
         self._raii = None
@@ -90,7 +87,7 @@ class GoogleDriver(RemoteDriver):
     async def __aenter__(self) -> RemoteDriver:
         async with contextlib.AsyncExitStack() as stack:
             self._client = await stack.enter_async_context(
-                Client(self._storage, self._timeout))
+                Client(self._oauth, self._timeout))
             self._raii = stack.pop_all()
         return self
 
@@ -116,7 +113,7 @@ class GoogleDriver(RemoteDriver):
 
     async def fetch_changes(self,
         check_point: str,
-    ) -> AsyncGenerator[Tuple[str, List[ChangeDict]], None]:
+    ) -> AsyncGenerator[tuple[str, list[ChangeDict]], None]:
         new_start_page_token = None
         changes_list_args = {
             'page_token': check_point,
@@ -238,6 +235,15 @@ class GoogleDriver(RemoteDriver):
     async def get_hasher(self) -> Hasher:
         return PicklableHasher()
 
+    async def is_authorized(self) -> bool:
+        return self._oauth.access_token is not None
+
+    async def get_oauth_url(self) -> str:
+        return self._oauth.build_authorization_url()
+
+    async def set_oauth_token(self, token: str) -> None:
+        await self._client.accept_oauth_code(token)
+
     async def _fetch_node_by_name_from_parent_id(self,
         name: str,
         parent_id: str,
@@ -286,7 +292,7 @@ class GoogleDriver(RemoteDriver):
     async def _force_update_by_id(self, node_id: str) -> None:
         await self._client.files.update(node_id, trashed=False)
 
-    async def _fetch_children(self, parent_id: str) -> List[Node]:
+    async def _fetch_children(self, parent_id: str) -> list[Node]:
         query = ' and '.join([
             f"'{parent_id}' in parents",
         ])
@@ -598,7 +604,7 @@ class PicklableHasher(Hasher):
 
 
 def normalize_changes(
-    change_list: List[GoogleFileDict],
+    change_list: list[GoogleFileDict],
 ) -> Generator[ChangeDict, None, None]:
     for change in change_list:
         is_removed = change['removed']

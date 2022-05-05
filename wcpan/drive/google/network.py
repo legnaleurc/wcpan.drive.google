@@ -8,17 +8,16 @@ from typing import (
     AsyncGenerator,
     AsyncIterator,
     Callable,
-    Dict,
     Generator,
     Optional,
-    Tuple,
     Union,
 )
 
 import aiohttp
+from wcpan.drive.core.exceptions import UnauthorizedError
 from wcpan.logger import DEBUG, EXCEPTION, WARNING
 
-from .util import OAuth2Storage, OAuth2Manager
+from .util import OAuth2Manager
 from .exceptions import (
     DownloadAbusiveFileError,
     InvalidAbuseFlagError,
@@ -37,20 +36,17 @@ ReadableContent = Union[bytes, ContentProducer]
 
 class Network(object):
 
-    def __init__(self, storage: OAuth2Storage, timeout: int) -> None:
-        self._storage = storage
+    def __init__(self, oauth: OAuth2Manager, timeout: int) -> None:
+        self._oauth = oauth
         self._timeout = timeout
         self._backoff_level = 0
         self._session: aiohttp.ClientSession = None
-        self._oauth: OAuth2Manager = None
         self._raii = None
 
     async def __aenter__(self) -> 'Network':
         async with contextlib.AsyncExitStack() as stack:
             self._session = await stack.enter_async_context(
                 aiohttp.ClientSession())
-            self._oauth = await stack.enter_async_context(
-                OAuth2Manager(self._session, self._storage))
             self._raii = stack.pop_all()
 
         return self
@@ -62,11 +58,14 @@ class Network(object):
         self._oauth = None
         self._raii = None
 
+    async def accept_oauth_code(self, code: str) -> None:
+        await self._oauth.set_authenticated_token(self._session, code)
+
     async def fetch(self,
         method: str,
         url: str,
-        args: Dict[str, Any] = None,
-        headers: Dict[str, str] = None,
+        args: dict[str, Any] = None,
+        headers: dict[str, str] = None,
         body: ReadableContent = None,
     ) -> 'JSONResponse':
         while True:
@@ -88,8 +87,8 @@ class Network(object):
     async def upload(self,
         method: str,
         url: str,
-        args: Dict[str, Any] = None,
-        headers: Dict[str, str] = None,
+        args: dict[str, Any] = None,
+        headers: dict[str, str] = None,
         body: ReadableContent = None,
     ) -> 'JSONResponse':
         kwargs = await self._prepare_kwargs(method, url, args, headers, body)
@@ -107,8 +106,8 @@ class Network(object):
     async def download(self,
         method: str,
         url: str,
-        args: Dict[str, Any] = None,
-        headers: Dict[str, str] = None,
+        args: dict[str, Any] = None,
+        headers: dict[str, str] = None,
         body: ReadableContent = None,
     ) -> 'StreamResponse':
         while True:
@@ -127,7 +126,7 @@ class Network(object):
             return StreamResponse(response, self._timeout)
 
     async def _request_loop(self,
-        kwargs: Dict[str, Any],
+        kwargs: dict[str, Any],
     ) -> aiohttp.ClientResponse:
         while True:
             await self._wait_backoff()
@@ -145,7 +144,12 @@ class Network(object):
                 return response
             if rv == Status.REFRESH:
                 assert self._oauth is not None
-                await self._oauth.renew_token()
+                try:
+                    await self._oauth.renew_token(self._session)
+                except UnauthorizedError:
+                    raise
+                except Exception as e:
+                    raise UnauthorizedError() from e
                 await self._update_token_header(kwargs['headers'])
                 continue
             if rv == Status.BACKOFF:
@@ -163,10 +167,10 @@ class Network(object):
     async def _prepare_kwargs(self,
         method: str,
         url: str,
-        args: Optional[Dict[str, Any]],
-        headers: Optional[Dict[str, str]],
+        args: Optional[dict[str, Any]],
+        headers: Optional[dict[str, str]],
         body: Optional[ReadableContent],
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         kwargs = {
             'method': method,
             'url': url,
@@ -179,8 +183,8 @@ class Network(object):
         return kwargs
 
     async def _prepare_headers(self,
-        headers: Optional[Dict[str, str]],
-    ) -> Dict[str, str]:
+        headers: Optional[dict[str, str]],
+    ) -> dict[str, str]:
         if headers is None:
             h = {}
         else:
@@ -189,9 +193,11 @@ class Network(object):
         await self._update_token_header(h)
         return h
 
-    async def _update_token_header(self, headers: Dict[str, str]) -> None:
+    async def _update_token_header(self, headers: dict[str, str]) -> None:
         assert self._oauth is not None
-        token = await self._oauth.get_access_token()
+        token = await self._oauth.safe_get_access_token()
+        if not token:
+            raise UnauthorizedError()
         headers['Authorization'] = f'Bearer {token}'
 
     async def _check_status(self,
@@ -234,7 +240,7 @@ class Network(object):
     def _raiseError(self,
         status: str,
         response: aiohttp.ClientResponse,
-        json_: Dict[str, Any],
+        json_: dict[str, Any],
     ) -> None:
         if status == '403':
             firstError = json_['error']['errors'][0]
@@ -265,7 +271,7 @@ class Request(object):
         return self._request.method
 
     @property
-    def headers(self) -> Dict[str, str]:
+    def headers(self) -> dict[str, str]:
         return self._request.headers
 
 
@@ -289,13 +295,13 @@ class JSONResponse(Response):
 
     def __init__(self,
         response: aiohttp.ClientResponse,
-        json_: Dict[str, Any],
+        json_: dict[str, Any],
     ) -> None:
         super().__init__(response)
         self._json = json_
 
     @property
-    def json(self) -> Dict[str, Any]:
+    def json(self) -> dict[str, Any]:
         return self._json
 
 
@@ -372,8 +378,8 @@ async def backoff_needed(
 
 
 def normalize_query_string(
-    qs: Dict[str, Any],
-) -> Generator[Tuple[str, str], None, None]:
+    qs: dict[str, Any],
+) -> Generator[tuple[str, str], None, None]:
     for key, value in qs.items():
         if isinstance(value, bool):
             value = 'true' if value else 'false'

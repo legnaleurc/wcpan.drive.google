@@ -1,23 +1,29 @@
-from typing import TypedDict, Optional, Dict, Any, List
+from typing import TypedDict, Any
 import asyncio
 import contextlib
 import json
 import pathlib
-import urllib.parse
+from urllib.parse import urlencode, urlunparse, urlparse, parse_qs
 
 import aiohttp
 import yaml
 
+from wcpan.drive.core.exceptions import UnauthorizedError
 from wcpan.logger import DEBUG, EXCEPTION
 
 from .exceptions import AuthenticationError, CredentialFileError, TokenFileError
 
 
-class OAuth2Info(TypedDict):
-
+class OAuth2Config(TypedDict):
+    type: str
     client_id: str
     client_secret: str
     redirect_uri: str
+    auth_uri: str
+    token_uri: str
+
+
+class OAuth2Token(TypedDict):
     access_token: str
     refresh_token: str
 
@@ -35,43 +41,39 @@ class OAuth2Storage(object):
         self._client_secret = config_path / 'client_secret.json'
         self._oauth_token = data_path / 'oauth_token.yaml'
 
-    def load_oauth2_info(self) -> OAuth2Info:
-        # load API key
+    def load_oauth2_config(self) -> OAuth2Config:
         with self._client_secret.open('r') as fin:
-            client = json.load(fin)
-        try:
-            client = client['installed']
-            redirect_uri = client['redirect_uris'][0]
-            client_id = client['client_id']
-            client_secret = client['client_secret']
-        except (KeyError, IndexError):
-            raise CredentialFileError()
+            config = json.load(fin)
 
-        # load refresh token
-        if not self._oauth_token.is_file():
-            access_token = None
-            refresh_token = None
+        if 'web' in config:
+            web = config['web']
+            return load_web(web)
         else:
-            with self._oauth_token.open('r') as fin:
-                token = yaml.safe_load(fin)
-            version = token.get('version', 0)
-            if version != OAUTH_TOKEN_VERSION:
-                raise TokenFileError(f'invalid token version: {version}')
-            try:
-                access_token = token['access_token']
-                refresh_token = token['refresh_token']
-            except KeyError:
-                raise TokenFileError(f'invalid token format')
+            raise CredentialFileError('credential file not supported (only supports `web`)')
 
+    def load_oauth2_token(self) -> OAuth2Token:
+        if not self._oauth_token.is_file():
+            return {
+                'access_token': None,
+                'refresh_token': None,
+            }
+
+        with self._oauth_token.open('r') as fin:
+            token = yaml.safe_load(fin)
+        version = token.get('version', 0)
+        if version != OAUTH_TOKEN_VERSION:
+            raise TokenFileError(f'invalid token version: {version}')
+        try:
+            access_token = token['access_token']
+            refresh_token = token['refresh_token']
+        except KeyError:
+            raise TokenFileError(f'invalid token format')
         return {
-            'client_id': client_id,
-            'client_secret': client_secret,
-            'redirect_uri': redirect_uri,
             'access_token': access_token,
             'refresh_token': refresh_token,
         }
 
-    def save_oauth2_info(self,
+    def save_oauth2_token(self,
         access_token: str,
         refresh_token: str,
     ) -> None:
@@ -88,67 +90,87 @@ class OAuth2Storage(object):
 
 class OAuth2Manager(object):
 
-    def __init__(self,
-        session: aiohttp.ClientSession,
-        storage: OAuth2Storage,
-    ) -> None:
-        self._session = session
+    _SCOPES = [
+        'https://www.googleapis.com/auth/drive',
+    ]
+
+    def __init__(self, storage: OAuth2Storage) -> None:
         self._storage = storage
         self._lock = asyncio.Condition()
         self._refreshing = False
         self._error = False
-        self._oauth = None
-        self._raii = None
+        self._oauth2_config: OAuth2Config = self._storage.load_oauth2_config()
+        self._oauth2_token: OAuth2Token = self._storage.load_oauth2_token()
 
-    async def __aenter__(self) -> 'OAuth2Manager':
-        oauth2_info = self._storage.load_oauth2_info()
+    @property
+    def access_token(self) -> str:
+        return self._oauth2_token.get('access_token', None)
 
-        async with contextlib.AsyncExitStack() as stack:
-            self._oauth = await stack.enter_async_context(
-                OAuth2CommandLineAuthenticator(
-                    self._session,
-                    oauth2_info['client_id'],
-                    oauth2_info['client_secret'],
-                    oauth2_info['redirect_uri'],
-                    oauth2_info['access_token'],
-                    oauth2_info['refresh_token'],
-                ))
-            self._storage.save_oauth2_info(
-                self._oauth.access_token,
-                self._oauth.refresh_token,
-            )
-            self._raii = stack.pop_all()
+    @property
+    def refresh_token(self) -> str:
+        return self._oauth2_token.get('refresh_token', None)
 
-        return self
+    def build_authorization_url(self) -> str:
+        kwargs = {
+            'redirect_uri': self._oauth2_config['redirect_uri'],
+            'client_id': self._oauth2_config['client_id'],
+            'response_type': 'code',
+            'access_type': 'offline',
+            'scope': ' '.join(self._SCOPES),
+        }
+        url = urlparse(self._oauth2_config['auth_uri'])
+        url = urlunparse((
+            url[0],
+            url[1],
+            url[2],
+            url[3],
+            urlencode(kwargs),
+            url[5],
+        ))
+        return url
 
-    async def __aexit__(self, type_, exc, tb) -> bool:
-        await self._raii.aclose()
-        self._raii = None
-        self._oauth = None
-        self._error = False
-        self._refreshing = False
+    async def set_authenticated_token(self,
+        session: aiohttp.ClientSession,
+        code: str,
+    ) -> dict[str, Any]:
+        code = parse_authorized_code(code)
+        headers = {'Content-Type': 'application/x-www-form-urlencoded'}
+        body = urlencode({
+            'redirect_uri': self._oauth2_config['redirect_uri'],
+            'code': code,
+            'client_id': self._oauth2_config['client_id'],
+            'client_secret': self._oauth2_config['client_secret'],
+            'grant_type': 'authorization_code',
+        })
+        async with session.post(self._oauth2_config['token_uri'],
+                                headers=headers, data=body) as response:
+            response.raise_for_status()
+            token = await response.json()
+        self._save_token(token)
 
-    async def get_access_token(self) -> str:
+    async def safe_get_access_token(self) -> str:
         if self._refreshing:
             async with self._lock:
                 await self._lock.wait()
         if self._error:
             raise AuthenticationError()
-        return self._oauth.access_token
+        return self.access_token
 
-    async def renew_token(self):
+    async def renew_token(self, session: aiohttp.ClientSession):
         if self._refreshing:
             async with self._lock:
                 await self._lock.wait()
             return
 
+        if not self.access_token:
+            raise UnauthorizedError()
+
+        if not self.refresh_token:
+            raise UnauthorizedError()
+
         async with self._guard():
             try:
-                await self._oauth.refresh()
-                self._storage.save_oauth2_info(
-                    self._oauth.access_token,
-                    self._oauth.refresh_token,
-                )
+                await self._refresh(session)
             except Exception as e:
                 EXCEPTION('wcpan.drive.google', e) << 'error on refresh token'
                 self._error = True
@@ -167,117 +189,53 @@ class OAuth2Manager(object):
             async with self._lock:
                 self._lock.notify_all()
 
+    def _save_token(self, token: dict[str, str]) -> None:
+        self._oauth2_token['access_token'] = token['access_token']
+        if 'refresh_token' in token:
+            self._oauth2_token['refresh_token'] = token['refresh_token']
+        self._storage.save_oauth2_token(self.access_token, self.refresh_token)
 
-class OAuth2CommandLineAuthenticator(object):
-
-    def __init__(self,
-        session: aiohttp.ClientSession,
-        client_id: str,
-        client_secret: str,
-        redirect_uri: str,
-        access_token: str = None,
-        refresh_token: str = None
-    ) -> None:
-        self._session = session
-        self._client_id = client_id
-        self._client_secret = client_secret
-        self._redirect_uri = redirect_uri
-        self._access_token = access_token
-        self._refresh_token = refresh_token
-
-    async def __aenter__(self) -> 'OAuth2CommandLineAuthenticator':
-        if self._access_token is None:
-            await self._fetch_access_token()
-        return self
-
-    async def __aexit__(self, type_, value, traceback) -> bool:
-        pass
-
-    @property
-    def access_token(self) -> str:
-        assert self._access_token is not None
-        return self._access_token
-
-    @property
-    def refresh_token(self) -> Optional[str]:
-        return self._refresh_token
-
-    async def refresh(self) -> None:
+    async def _refresh(self, session: aiohttp.ClientSession):
         headers = {
             'Content-Type': 'application/x-www-form-urlencoded',
         }
-        body = urllib.parse.urlencode({
-            'client_id': self._client_id,
-            'client_secret': self._client_secret,
-            'refresh_token': self._refresh_token,
+        body = urlencode({
+            'client_id': self._oauth2_config['client_id'],
+            'client_secret': self._oauth2_config['client_secret'],
+            'refresh_token': self.refresh_token,
             'grant_type': 'refresh_token',
         })
 
-        async with self._session.post(self.oauth_access_token_url,
-                                      headers=headers, data=body) as response:
+        async with session.post(self._oauth2_config['token_uri'],
+                                headers=headers, data=body) as response:
             response.raise_for_status()
             token = await response.json()
         self._save_token(token)
 
-    def _save_token(self, token: Dict[str, Any]) -> None:
-        self._access_token = token['access_token']
-        if 'refresh_token' in token:
-            self._refresh_token = token['refresh_token']
 
-    async def _fetch_access_token(self) -> None:
-        # get code on success
-        code = await self._authorize_redirect()
-        token = await self._get_authenticated_user(code=code)
-        self._save_token(token)
+def load_web(web: dict[str, str]) -> OAuth2Config:
+    return {
+        'type': 'web',
+        'client_id': web['client_id'],
+        'client_secret': web['client_secret'],
+        'redirect_uri': web['redirect_uris'][0],
+        'auth_uri': web['auth_uri'],
+        'token_uri': web['token_uri'],
+    }
 
-    async def _authorize_redirect(self) -> str:
-        kwargs = {
-            'redirect_uri': self._redirect_uri,
-            'client_id': self._client_id,
-            'response_type': 'code',
-            'scope': ' '.join(self.scopes),
-        }
 
-        url = urllib.parse.urlparse(self.oauth_authorize_url)
-        url = urllib.parse.urlunparse((
-            url[0],
-            url[1],
-            url[2],
-            url[3],
-            urllib.parse.urlencode(kwargs),
-            url[5],
-        ))
-        return await self.redirect(url)
+def reverse_cliend_id(client_id: str) -> str:
+    parts = client_id.split('.')
+    parts = parts[::-1]
+    return '.'.join(parts)
 
-    @property
-    def oauth_authorize_url(self) -> str:
-        return 'https://accounts.google.com/o/oauth2/auth'
 
-    @property
-    def oauth_access_token_url(self) -> str:
-        return 'https://accounts.google.com/o/oauth2/token'
+def parse_authorized_code(code: str) -> str:
+    if not code.startswith('http'):
+        return code
 
-    @property
-    def scopes(self) -> List[str]:
-        return [
-            'https://www.googleapis.com/auth/drive',
-        ]
-
-    async def _get_authenticated_user(self, code: str) -> Dict[str, Any]:
-        headers = {'Content-Type': 'application/x-www-form-urlencoded'}
-        body = urllib.parse.urlencode({
-            'redirect_uri': self._redirect_uri,
-            'code': code,
-            'client_id': self._client_id,
-            'client_secret': self._client_secret,
-            'grant_type': 'authorization_code',
-        })
-        async with self._session.post(self.oauth_access_token_url,
-                                      headers=headers, data=body) as response:
-            response.raise_for_status()
-            return await response.json()
-
-    # NOTE Use case depends
-    async def redirect(self, url: str) -> str:
-        print(url)
-        return input().strip()
+    url = urlparse(code)
+    query = url.query
+    params = parse_qs(query)
+    code = params['code'][0]
+    return code

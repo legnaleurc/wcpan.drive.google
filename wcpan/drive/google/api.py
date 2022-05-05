@@ -1,12 +1,11 @@
 import contextlib
 import json
-from typing import List, Tuple, Dict
 
 import arrow
 from wcpan.drive.core.types import MediaInfo
 
 from .network import Network, Response, ContentProducer
-from .util import FOLDER_MIME_TYPE, OAuth2Storage
+from .util import FOLDER_MIME_TYPE, OAuth2Manager
 
 
 API_ROOT = 'https://www.googleapis.com/drive/v3'
@@ -14,8 +13,8 @@ API_ROOT = 'https://www.googleapis.com/drive/v3'
 
 class Client(object):
 
-    def __init__(self, storage: OAuth2Storage, timeout: int) -> None:
-        self._storage = storage
+    def __init__(self, oauth: OAuth2Manager, timeout: int) -> None:
+        self._oauth = oauth
         self._timeout = timeout
         self._network = None
         self._api = None
@@ -24,7 +23,7 @@ class Client(object):
     async def __aenter__(self) -> 'Client':
         async with contextlib.AsyncExitStack() as stack:
             self._network = await stack.enter_async_context(
-                Network(self._storage, self._timeout))
+                Network(self._oauth, self._timeout))
             self._api = {
                 'changes': Changes(self._network),
                 'files': Files(self._network),
@@ -38,6 +37,9 @@ class Client(object):
         self._api = None
         self._network = None
         self._raii = None
+
+    async def accept_oauth_code(self, code: str) -> None:
+        await self._network.accept_oauth_code(code)
 
     @property
     def changes(self) -> 'Changes':
@@ -157,7 +159,7 @@ class Files(object):
 
     async def download(self,
         file_id: str,
-        range_: Tuple[int, int],
+        range_: tuple[int, int],
         *,
         acknowledge_abuse: bool = None,
     ) -> Response:
@@ -182,7 +184,7 @@ class Files(object):
         parent_id: str = None,
         mime_type: str = None,
         media_info: MediaInfo = None,
-        app_properties: Dict[str, str] = None,
+        app_properties: dict[str, str] = None,
     ) -> Response:
         if not file_name:
             raise ValueError('file name is empty')
@@ -273,7 +275,7 @@ class Files(object):
         folder_name: str,
         *,
         parent_id: str = None,
-        app_properties: Dict[str, str] = None,
+        app_properties: dict[str, str] = None,
     ) -> Response:
         metadata = {
             'name': folder_name,
@@ -299,7 +301,7 @@ class Files(object):
         *,
         parent_id: str = None,
         mime_type: str = None,
-        app_properties: Dict[str, str] = None,
+        app_properties: dict[str, str] = None,
     ) -> Response:
         if not file_name:
             raise ValueError('file name is empty')
@@ -329,11 +331,11 @@ class Files(object):
     async def update(self,
         file_id: str,
         *,
-        add_parents: List[str] = None,
-        remove_parents: List[str] = None,
+        add_parents: list[str] = None,
+        remove_parents: list[str] = None,
         name: str = None,
         trashed: bool = None,
-        app_properties: Dict[str, str] = None,
+        app_properties: list[str, str] = None,
         media_info: MediaInfo = None,
     ) -> Response:
         args = {}
