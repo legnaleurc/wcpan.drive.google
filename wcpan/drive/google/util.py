@@ -115,7 +115,11 @@ class OAuth2Manager(object):
             'redirect_uri': self._oauth2_config['redirect_uri'],
             'client_id': self._oauth2_config['client_id'],
             'response_type': 'code',
+            # Essential for getting refresh token.
             'access_type': 'offline',
+            # Essential for getting refresh token **everytime**.
+            # See https://github.com/googleapis/google-api-python-client/issues/213 .
+            'prompt': 'consent',
             'scope': ' '.join(self._SCOPES),
         }
         url = urlparse(self._oauth2_config['auth_uri'])

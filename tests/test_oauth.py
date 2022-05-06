@@ -121,7 +121,7 @@ class TestOAuth2Authenticator(unittest.IsolatedAsyncioTestCase):
 
     async def testGetOAuthUrl(self):
         url = self._oauth.build_authorization_url()
-        self.assertEqual(url, '__AUTH_URI__?redirect_uri=__REDIRECT_URI__&client_id=__ID__&response_type=code&access_type=offline&scope=https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fdrive')
+        self.assertEqual(url, '__AUTH_URI__?redirect_uri=__REDIRECT_URI__&client_id=__ID__&response_type=code&access_type=offline&prompt=consent&scope=https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fdrive')
 
     async def testAcceptAnswer(self):
         answer = 'http://localhost/?code=__CODE__&scope=__SCOPE__'
