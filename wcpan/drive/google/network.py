@@ -28,14 +28,13 @@ from .exceptions import (
 
 
 BACKOFF_FACTOR = 2
-BACKOFF_STATUSES = set(('403', '408', '429', '500', '502', '503', '504'))
+BACKOFF_STATUSES = set(("403", "408", "429", "500", "502", "503", "504"))
 
 ContentProducer = Callable[[], AsyncGenerator[bytes, None]]
 ReadableContent = Union[bytes, ContentProducer]
 
 
 class Network(object):
-
     def __init__(self, oauth: OAuth2Manager, timeout: int) -> None:
         self._oauth = oauth
         self._timeout = timeout
@@ -43,10 +42,9 @@ class Network(object):
         self._session: aiohttp.ClientSession = None
         self._raii = None
 
-    async def __aenter__(self) -> 'Network':
+    async def __aenter__(self) -> "Network":
         async with contextlib.AsyncExitStack() as stack:
-            self._session = await stack.enter_async_context(
-                aiohttp.ClientSession())
+            self._session = await stack.enter_async_context(aiohttp.ClientSession())
             self._raii = stack.pop_all()
 
         return self
@@ -61,16 +59,16 @@ class Network(object):
     async def accept_oauth_code(self, code: str) -> None:
         await self._oauth.set_authenticated_token(self._session, code)
 
-    async def fetch(self,
+    async def fetch(
+        self,
         method: str,
         url: str,
         args: dict[str, Any] = None,
         headers: dict[str, str] = None,
         body: ReadableContent = None,
-    ) -> 'JSONResponse':
+    ) -> "JSONResponse":
         while True:
-            kwargs = await self._prepare_kwargs(method, url, args, headers,
-                                                body)
+            kwargs = await self._prepare_kwargs(method, url, args, headers, body)
 
             try:
                 response = await self._request_loop(kwargs)
@@ -84,17 +82,18 @@ class Network(object):
                 # We are in a broken state, just let client to handle it.
                 raise NetworkError() from e
 
-    async def upload(self,
+    async def upload(
+        self,
         method: str,
         url: str,
         args: dict[str, Any] = None,
         headers: dict[str, str] = None,
         body: ReadableContent = None,
-    ) -> 'JSONResponse':
+    ) -> "JSONResponse":
         kwargs = await self._prepare_kwargs(method, url, args, headers, body)
         # NOTE Upload can take long time to send data, so we only set timeout
         # for socket connection.
-        kwargs['timeout'] = aiohttp.ClientTimeout(sock_connect=self._timeout)
+        kwargs["timeout"] = aiohttp.ClientTimeout(sock_connect=self._timeout)
 
         try:
             response = await self._request_loop(kwargs)
@@ -103,20 +102,19 @@ class Network(object):
 
         return await to_json_response(response)
 
-    async def download(self,
+    async def download(
+        self,
         method: str,
         url: str,
         args: dict[str, Any] = None,
         headers: dict[str, str] = None,
         body: ReadableContent = None,
-    ) -> 'StreamResponse':
+    ) -> "StreamResponse":
         while True:
-            kwargs = await self._prepare_kwargs(method, url, args, headers,
-                                                body)
+            kwargs = await self._prepare_kwargs(method, url, args, headers, body)
             # NOTE Download can take long time to send data, so we only set
             # timeout for socket connection.
-            kwargs['timeout'] = aiohttp.ClientTimeout(
-                sock_connect=self._timeout)
+            kwargs["timeout"] = aiohttp.ClientTimeout(sock_connect=self._timeout)
 
             try:
                 response = await self._request_loop(kwargs)
@@ -125,7 +123,8 @@ class Network(object):
 
             return StreamResponse(response, self._timeout)
 
-    async def _request_loop(self,
+    async def _request_loop(
+        self,
         kwargs: dict[str, Any],
     ) -> aiohttp.ClientResponse:
         while True:
@@ -150,7 +149,7 @@ class Network(object):
                     raise
                 except Exception as e:
                     raise UnauthorizedError() from e
-                await self._update_token_header(kwargs['headers'])
+                await self._update_token_header(kwargs["headers"])
                 continue
             if rv == Status.BACKOFF:
                 continue
@@ -159,12 +158,13 @@ class Network(object):
                 json_ = await response.json()
             except aiohttp.ContentTypeError as e:
                 text = await response.text()
-                EXCEPTION('wcpan.drive.google', e) << text
+                EXCEPTION("wcpan.drive.google", e) << text
                 raise
 
             self._raiseError(status, response, json_)
 
-    async def _prepare_kwargs(self,
+    async def _prepare_kwargs(
+        self,
         method: str,
         url: str,
         args: Optional[dict[str, Any]],
@@ -172,24 +172,27 @@ class Network(object):
         body: Optional[ReadableContent],
     ) -> dict[str, Any]:
         kwargs = {
-            'method': method,
-            'url': url,
-            'headers': await self._prepare_headers(headers),
+            "method": method,
+            "url": url,
+            "headers": await self._prepare_headers(headers),
         }
         if args is not None:
-            kwargs['params'] = list(normalize_query_string(args))
+            kwargs["params"] = list(normalize_query_string(args))
         if body is not None:
-            kwargs['data'] = body if not callable(body) else body()
+            kwargs["data"] = body if not callable(body) else body()
         return kwargs
 
-    async def _prepare_headers(self,
+    async def _prepare_headers(
+        self,
         headers: Optional[dict[str, str]],
     ) -> dict[str, str]:
         if headers is None:
             h = {}
         else:
-            h = {k: v if isinstance(v, (bytes, str)) or v is None else str(v)
-                 for k, v in headers.items()}
+            h = {
+                k: v if isinstance(v, (bytes, str)) or v is None else str(v)
+                for k, v in headers.items()
+            }
         await self._update_token_header(h)
         return h
 
@@ -198,12 +201,13 @@ class Network(object):
         token = await self._oauth.safe_get_access_token()
         if not token:
             raise UnauthorizedError()
-        headers['Authorization'] = f'Bearer {token}'
+        headers["Authorization"] = f"Bearer {token}"
 
-    async def _check_status(self,
+    async def _check_status(
+        self,
         status: str,
         response: aiohttp.ClientResponse,
-    ) -> 'Status':
+    ) -> "Status":
         backoff = await backoff_needed(status, response)
         self._adjust_backoff_level(backoff)
         if backoff:
@@ -211,11 +215,11 @@ class Network(object):
             return Status.BACKOFF
 
         # normal response
-        if status[0] in ('1', '2', '3'):
+        if status[0] in ("1", "2", "3"):
             return Status.OK
 
         # need to refresh access token
-        if status == '401':
+        if status == "401":
             return Status.REFRESH
 
         # otherwise it is an error
@@ -231,34 +235,34 @@ class Network(object):
         if self._backoff_level <= 0:
             return
         seed = random.random()
-        power = 2 ** self._backoff_level
+        power = 2**self._backoff_level
         s_delay = math.floor(seed * power * BACKOFF_FACTOR)
         s_delay = min(self._timeout, s_delay)
-        DEBUG('wcpan.drive.google') << 'backoff for' << s_delay
+        DEBUG("wcpan.drive.google") << "backoff for" << s_delay
         await asyncio.sleep(s_delay)
 
-    def _raiseError(self,
+    def _raiseError(
+        self,
         status: str,
         response: aiohttp.ClientResponse,
         json_: dict[str, Any],
     ) -> None:
-        if status == '403':
-            firstError = json_['error']['errors'][0]
-            reason = firstError['reason']
-            if reason == 'cannotDownloadAbusiveFile':
-                raise DownloadAbusiveFileError(firstError['message'])
-            if reason == 'invalidAbuseAcknowledgment':
-                raise InvalidAbuseFlagError(firstError['message'])
-        elif status == '416':
-            firstError = json_['error']['errors'][0]
-            reason = firstError['reason']
-            if reason == 'requestedRangeNotSatisfiable':
-                raise InvalidRangeError(response.request_info.headers['Range'])
+        if status == "403":
+            firstError = json_["error"]["errors"][0]
+            reason = firstError["reason"]
+            if reason == "cannotDownloadAbusiveFile":
+                raise DownloadAbusiveFileError(firstError["message"])
+            if reason == "invalidAbuseAcknowledgment":
+                raise InvalidAbuseFlagError(firstError["message"])
+        elif status == "416":
+            firstError = json_["error"]["errors"][0]
+            reason = firstError["reason"]
+            if reason == "requestedRangeNotSatisfiable":
+                raise InvalidRangeError(response.request_info.headers["Range"])
         raise ResponseError(status, response, json_)
 
 
 class Request(object):
-
     def __init__(self, request: aiohttp.RequestInfo) -> None:
         self._request = request
 
@@ -276,7 +280,6 @@ class Request(object):
 
 
 class Response(object):
-
     def __init__(self, response: aiohttp.ClientResponse) -> None:
         self._response = response
         self._status = str(response.status)
@@ -292,8 +295,8 @@ class Response(object):
 
 
 class JSONResponse(Response):
-
-    def __init__(self,
+    def __init__(
+        self,
         response: aiohttp.ClientResponse,
         json_: dict[str, Any],
     ) -> None:
@@ -306,12 +309,11 @@ class JSONResponse(Response):
 
 
 class StreamResponse(Response):
-
     def __init__(self, response: aiohttp.ClientResponse, timeout: int) -> None:
         super().__init__(response)
         self._timeout = timeout
 
-    async def __aenter__(self) -> 'StreamResponse':
+    async def __aenter__(self) -> "StreamResponse":
         await self._response.__aenter__()
         return self
 
@@ -333,7 +335,7 @@ class StreamResponse(Response):
 
 async def to_json_response(response: aiohttp.ClientResponse) -> JSONResponse:
     async with response:
-        if response.content_type == 'application/json':
+        if response.content_type == "application/json":
             json_ = await response.json()
         else:
             json_ = await response.text()
@@ -341,7 +343,6 @@ async def to_json_response(response: aiohttp.ClientResponse) -> JSONResponse:
 
 
 class Status(enum.Enum):
-
     OK = enum.auto()
     REFRESH = enum.auto()
     BACKOFF = enum.auto()
@@ -356,20 +357,20 @@ async def backoff_needed(
         return False
 
     # not all 403 errors are rate limit error
-    if status == '403':
+    if status == "403":
         msg = await response.json()
         if not msg:
             # undefined behavior, probably a server problem, better backoff
-            WARNING('wcpan.drive.google') << '403 with empty error message'
+            WARNING("wcpan.drive.google") << "403 with empty error message"
             return True
-        domain = msg['error']['errors'][0]['domain']
-        if domain != 'usageLimits':
+        domain = msg["error"]["errors"][0]["domain"]
+        if domain != "usageLimits":
             return False
 
     # the request timedout
-    if status == '408':
+    if status == "408":
         # NOTE somehow this error shows html instead of json
-        WARNING('wcpan.drive.google') << '408 request timed out'
+        WARNING("wcpan.drive.google") << "408 request timed out"
         # No need to backoff because in this case the whole request cannot be
         # resumed at all.
         return False
@@ -382,9 +383,9 @@ def normalize_query_string(
 ) -> Generator[tuple[str, str], None, None]:
     for key, value in qs.items():
         if isinstance(value, bool):
-            value = 'true' if value else 'false'
+            value = "true" if value else "false"
         elif isinstance(value, (int, float)):
             value = str(value)
         elif not isinstance(value, str):
-            raise ValueError('unknown type in query string')
+            raise ValueError("unknown type in query string")
         yield key, value

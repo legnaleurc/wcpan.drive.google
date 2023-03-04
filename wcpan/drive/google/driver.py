@@ -41,38 +41,43 @@ from .util import FOLDER_MIME_TYPE, OAuth2Manager, OAuth2Storage
 GoogleFileDict = dict[str, Any]
 
 
-FILE_FIELDS = ','.join([
-    'id',
-    'name',
-    'mimeType',
-    'trashed',
-    'parents',
-    'createdTime',
-    'modifiedTime',
-    'md5Checksum',
-    'size',
-    'shared',
-    'ownedByMe',
-    'imageMediaMetadata/width',
-    'imageMediaMetadata/height',
-    'videoMediaMetadata/width',
-    'videoMediaMetadata/height',
-    'videoMediaMetadata/durationMillis',
-    'appProperties',
-])
-CHANGE_FIELDS = ','.join([
-    'nextPageToken',
-    'newStartPageToken',
-    f'changes(fileId,removed,file({FILE_FIELDS}))',
-])
-LIST_FIELDS = ','.join([
-    'nextPageToken',
-    f'files({FILE_FIELDS})',
-])
+FILE_FIELDS = ",".join(
+    [
+        "id",
+        "name",
+        "mimeType",
+        "trashed",
+        "parents",
+        "createdTime",
+        "modifiedTime",
+        "md5Checksum",
+        "size",
+        "shared",
+        "ownedByMe",
+        "imageMediaMetadata/width",
+        "imageMediaMetadata/height",
+        "videoMediaMetadata/width",
+        "videoMediaMetadata/height",
+        "videoMediaMetadata/durationMillis",
+        "appProperties",
+    ]
+)
+CHANGE_FIELDS = ",".join(
+    [
+        "nextPageToken",
+        "newStartPageToken",
+        f"changes(fileId,removed,file({FILE_FIELDS}))",
+    ]
+)
+LIST_FIELDS = ",".join(
+    [
+        "nextPageToken",
+        f"files({FILE_FIELDS})",
+    ]
+)
 
 
 class GoogleDriver(RemoteDriver):
-
     @classmethod
     def get_version_range(cls):
         return (3, 3)
@@ -87,7 +92,8 @@ class GoogleDriver(RemoteDriver):
     async def __aenter__(self) -> RemoteDriver:
         async with contextlib.AsyncExitStack() as stack:
             self._client = await stack.enter_async_context(
-                Client(self._oauth, self._timeout))
+                Client(self._oauth, self._timeout)
+            )
             self._raii = stack.pop_all()
         return self
 
@@ -101,46 +107,50 @@ class GoogleDriver(RemoteDriver):
         return None
 
     async def get_initial_check_point(self) -> str:
-        return '1'
+        return "1"
 
     async def fetch_root_node(self) -> Node:
-        rv = await self._client.files.get('root', fields=FILE_FIELDS)
+        rv = await self._client.files.get("root", fields=FILE_FIELDS)
         rv = rv.json
-        rv['name'] = None
-        rv['parents'] = []
+        rv["name"] = None
+        rv["parents"] = []
         node = node_from_api(rv)
         return node
 
-    async def fetch_changes(self,
+    async def fetch_changes(
+        self,
         check_point: str,
     ) -> AsyncGenerator[tuple[str, list[ChangeDict]], None]:
         new_start_page_token = None
         changes_list_args = {
-            'page_token': check_point,
-            'page_size': 1000,
-            'restrict_to_my_drive': True,
-            'fields': CHANGE_FIELDS,
+            "page_token": check_point,
+            "page_size": 1000,
+            "restrict_to_my_drive": True,
+            "fields": CHANGE_FIELDS,
         }
 
         while new_start_page_token is None:
             rv = await self._client.changes.list_(**changes_list_args)
             rv = rv.json
-            next_page_token = rv.get('nextPageToken', None)
-            new_start_page_token = rv.get('newStartPageToken', None)
-            changes = rv['changes']
+            next_page_token = rv.get("nextPageToken", None)
+            new_start_page_token = rv.get("newStartPageToken", None)
+            changes = rv["changes"]
 
-            check_point = next_page_token if next_page_token is not None else new_start_page_token
+            check_point = (
+                next_page_token if next_page_token is not None else new_start_page_token
+            )
             changes = list(normalize_changes(changes))
 
             yield check_point, changes
 
-            changes_list_args['page_token'] = check_point
+            changes_list_args["page_token"] = check_point
 
     async def download(self, node: Node) -> ReadableFile:
         rf = GoogleReadableFile(self._client.files.download, node)
         return rf
 
-    async def create_folder(self,
+    async def create_folder(
+        self,
         parent_node: Node,
         folder_name: str,
         *,
@@ -154,21 +164,22 @@ class GoogleDriver(RemoteDriver):
         )
         if node:
             if exist_ok:
-                INFO('wcpan.drive.google') << 'skipped (existing)' << folder_name
+                INFO("wcpan.drive.google") << "skipped (existing)" << folder_name
                 return node
             else:
                 raise NodeConflictedError(node)
 
         api = self._client.files
-        rv = await api.create_folder(folder_name=folder_name,
-                                     parent_id=parent_node.id_,
-                                     app_properties=private)
+        rv = await api.create_folder(
+            folder_name=folder_name, parent_id=parent_node.id_, app_properties=private
+        )
         rv = rv.json
-        node = await self._fetch_node_by_id(rv['id'])
+        node = await self._fetch_node_by_id(rv["id"])
 
         return node
 
-    async def upload(self,
+    async def upload(
+        self,
         parent_node: Node,
         file_name: str,
         *,
@@ -205,7 +216,8 @@ class GoogleDriver(RemoteDriver):
     async def trash_node(self, node: Node) -> None:
         await self._client.files.update(node.id_, trashed=True)
 
-    async def rename_node(self,
+    async def rename_node(
+        self,
         node: Node,
         *,
         new_parent: Optional[Node],
@@ -220,13 +232,13 @@ class GoogleDriver(RemoteDriver):
             raise NodeConflictedError(new_node)
 
         kwargs = {
-            'file_id': node.id_,
+            "file_id": node.id_,
         }
         if new_name:
-            kwargs['name'] = new_name
+            kwargs["name"] = new_name
         if new_parent and new_parent.id_ != node.parent_id:
-            kwargs['add_parents'] = [new_parent.id_]
-            kwargs['remove_parents'] = [node.parent_id]
+            kwargs["add_parents"] = [new_parent.id_]
+            kwargs["remove_parents"] = [node.parent_id]
 
         dummy_rv = await self._client.files.update(**kwargs)
         node = await self._fetch_node_by_id(node.id_)
@@ -244,29 +256,32 @@ class GoogleDriver(RemoteDriver):
     async def set_oauth_token(self, token: str) -> None:
         await self._client.accept_oauth_code(token)
 
-    async def _fetch_node_by_name_from_parent_id(self,
+    async def _fetch_node_by_name_from_parent_id(
+        self,
         name: str,
         parent_id: str,
     ) -> Node:
         safe_name = re.sub(r"[\\']", r"\\\g<0>", name)
-        query = ' and '.join([
-            f"'{parent_id}' in parents",
-            f"name = '{safe_name}'",
-            f'trashed = false',
-        ])
-        fields = f'files({FILE_FIELDS})'
+        query = " and ".join(
+            [
+                f"'{parent_id}' in parents",
+                f"name = '{safe_name}'",
+                f"trashed = false",
+            ]
+        )
+        fields = f"files({FILE_FIELDS})"
         try:
             rv = await self._client.files.list_(q=query, fields=fields)
         except ResponseError as e:
-            if e.status == '400':
-                DEBUG('wcpan.drive.google') << 'invalid query string:' << query
+            if e.status == "400":
+                DEBUG("wcpan.drive.google") << "invalid query string:" << query
                 raise InvalidNameError(name) from e
-            if e.status == '404':
+            if e.status == "404":
                 raise ParentNotFoundError(parent_id) from e
             raise
 
         rv = rv.json
-        files = rv['files']
+        files = rv["files"]
         if not files:
             return None
 
@@ -277,7 +292,7 @@ class GoogleDriver(RemoteDriver):
         try:
             rv = await self._client.files.get(node_id, fields=FILE_FIELDS)
         except ResponseError as e:
-            if e.status == '404':
+            if e.status == "404":
                 raise NodeNotFoundError(node_id) from e
             raise
         rv = rv.json
@@ -293,9 +308,11 @@ class GoogleDriver(RemoteDriver):
         await self._client.files.update(node_id, trashed=False)
 
     async def _fetch_children(self, parent_id: str) -> list[Node]:
-        query = ' and '.join([
-            f"'{parent_id}' in parents",
-        ])
+        query = " and ".join(
+            [
+                f"'{parent_id}' in parents",
+            ]
+        )
         page_token = None
         files = []
         try:
@@ -307,12 +324,12 @@ class GoogleDriver(RemoteDriver):
                     page_token=page_token,
                 )
                 rv = rv.json
-                files.extend(rv['files'])
-                page_token = rv.get('nextPageToken', None)
+                files.extend(rv["files"])
+                page_token = rv.get("nextPageToken", None)
                 if not page_token:
                     break
         except ResponseError as e:
-            if e.status == '404':
+            if e.status == "404":
                 raise ParentNotFoundError(parent_id) from e
             raise
 
@@ -321,7 +338,6 @@ class GoogleDriver(RemoteDriver):
 
 
 class GoogleReadableFile(ReadableFile):
-
     def __init__(self, download: Any, node: Node) -> None:
         self._download = download
         self._node = node
@@ -347,7 +363,7 @@ class GoogleReadableFile(ReadableFile):
     async def read(self, length: int) -> bytes:
         # nothing to read from an empty file
         if self._node.size <= 0:
-            return b''
+            return b""
 
         await self._open_response()
         return await self._response.read(length)
@@ -364,7 +380,7 @@ class GoogleReadableFile(ReadableFile):
     async def node(self) -> Node:
         return self._node
 
-    async def _download_from_offset(self) -> 'aiohttp.StreamResponse':
+    async def _download_from_offset(self) -> "aiohttp.StreamResponse":
         try:
             return await self._download(
                 file_id=self._node.id_,
@@ -373,7 +389,7 @@ class GoogleReadableFile(ReadableFile):
             )
         except DownloadAbusiveFileError:
             # FIXME automatically accept abuse files for now
-            WARNING('wcpan.drive.google') << f'{self._node.id_} is an abusive file'
+            WARNING("wcpan.drive.google") << f"{self._node.id_} is an abusive file"
             return await self._download(
                 file_id=self._node.id_,
                 range_=(self._offset, self._node.size),
@@ -396,8 +412,8 @@ class GoogleReadableFile(ReadableFile):
 
 
 class GoogleWritableFile(WritableFile):
-
-    def __init__(self,
+    def __init__(
+        self,
         initiate: Any,
         upload: Any,
         get_status: Any,
@@ -467,8 +483,7 @@ class GoogleWritableFile(WritableFile):
         feed = self._queue.put(chunk)
         feed = asyncio.wait_for(feed, timeout=self._timeout)
         feed = asyncio.create_task(feed)
-        await asyncio.wait([feed, self._bg],
-                           return_when=asyncio.FIRST_COMPLETED)
+        await asyncio.wait([feed, self._bg], return_when=asyncio.FIRST_COMPLETED)
         if not feed.done():
             # background connection ended
             feed.cancel()
@@ -479,7 +494,7 @@ class GoogleWritableFile(WritableFile):
     async def node(self) -> Optional[Node]:
         if not self._rv:
             return None
-        node = await self._get_node(self._rv['id'])
+        node = await self._get_node(self._rv["id"])
         return node
 
     async def _close_request(self) -> None:
@@ -491,7 +506,7 @@ class GoogleWritableFile(WritableFile):
             rv = await self._bg
             return rv
         except (Exception, asyncio.CancelledError) as e:
-            EXCEPTION('wcpan.drive.google', e) << 'close'
+            EXCEPTION("wcpan.drive.google", e) << "close"
         finally:
             self._queue = asyncio.Queue(maxsize=1)
             self._bg = None
@@ -526,10 +541,10 @@ class GoogleWritableFile(WritableFile):
             media_info=self._media_info,
             app_properties=self._private,
         )
-        url = rv.get_header('Location')
+        url = rv.get_header("Location")
         return url
 
-    async def _upload_to(self) -> 'aiohttp.ClientResponse':
+    async def _upload_to(self) -> "aiohttp.ClientResponse":
         try:
             rv = await self._upload(
                 self._url,
@@ -539,8 +554,8 @@ class GoogleWritableFile(WritableFile):
                 mime_type=self._mime_type,
             )
         except ResponseError as e:
-            if e.status == '404':
-                raise UploadError('the upload session has been expired') from e
+            if e.status == "404":
+                raise UploadError("the upload session has been expired") from e
             raise
         return rv
 
@@ -548,28 +563,28 @@ class GoogleWritableFile(WritableFile):
         try:
             rv = await self._get_status(self._url, self._size)
         except ResponseError as e:
-            if e.status == '410':
+            if e.status == "410":
                 # This means the temporary URL has been cleaned up by Google
                 # Drive, so the client has to start over again.
-                raise UploadError('the upload session has been expired') from e
+                raise UploadError("the upload session has been expired") from e
             raise
 
-        if rv.status != '308':
-            raise UploadError(f'invalid upload status: {rv.status}')
-        
+        if rv.status != "308":
+            raise UploadError(f"invalid upload status: {rv.status}")
+
         try:
-            rv = rv.get_header('Range')
+            rv = rv.get_header("Range")
         except KeyError:
             # no data yet
             return 0
 
-        rv = re.match(r'bytes=0-(\d+)', rv)
+        rv = re.match(r"bytes=0-(\d+)", rv)
         if not rv:
-            raise UploadError('invalid upload range')
+            raise UploadError("invalid upload range")
         rv = int(rv.group(1))
         return rv
 
-    async def _touch_empty(self) -> 'aiohttp.ClientResponse':
+    async def _touch_empty(self) -> "aiohttp.ClientResponse":
         rv = await self._touch(
             self._name,
             parent_id=self._parent_id,
@@ -580,7 +595,6 @@ class GoogleWritableFile(WritableFile):
 
 
 class PicklableHasher(Hasher):
-
     def __init__(self):
         self._hasher = hashlib.md5()
 
@@ -607,82 +621,82 @@ def normalize_changes(
     change_list: list[GoogleFileDict],
 ) -> Generator[ChangeDict, None, None]:
     for change in change_list:
-        is_removed = change['removed']
+        is_removed = change["removed"]
         if is_removed:
             yield {
-                'removed': True,
-                'id': change['fileId'],
+                "removed": True,
+                "id": change["fileId"],
             }
             continue
 
-        file_ = change['file']
-        is_shared = file_['shared']
-        is_owned_by_me = file_['ownedByMe']
+        file_ = change["file"]
+        is_shared = file_["shared"]
+        is_owned_by_me = file_["ownedByMe"]
         if is_shared or not is_owned_by_me:
             continue
 
         file_ = dict_from_api(file_)
         yield {
-            'removed': False,
-            'node': file_,
+            "removed": False,
+            "node": file_,
         }
 
 
 def dict_from_api(data: GoogleFileDict) -> NodeDict:
-    id_ = data['id']
+    id_ = data["id"]
 
-    is_folder = data['mimeType'] == FOLDER_MIME_TYPE
+    is_folder = data["mimeType"] == FOLDER_MIME_TYPE
 
-    size = data.get('size', None)
+    size = data.get("size", None)
     if size is not None:
         size = int(size)
 
-    private = data.get('appProperties', None)
+    private = data.get("appProperties", None)
 
     image = None
-    if private and 'image' in private:
-        width, height = private['image'].split(' ')
+    if private and "image" in private:
+        width, height = private["image"].split(" ")
         image = {
-            'width': int(width),
-            'height': int(height),
+            "width": int(width),
+            "height": int(height),
         }
-        del private['image']
-    if not image and 'imageMediaMetadata' in data:
+        del private["image"]
+    if not image and "imageMediaMetadata" in data:
         image = {
-            'width': data['imageMediaMetadata']['width'],
-            'height': data['imageMediaMetadata']['height'],
+            "width": data["imageMediaMetadata"]["width"],
+            "height": data["imageMediaMetadata"]["height"],
         }
 
     video = None
-    if private and 'video' in private:
-        width, height, ms_duration = private['video'].split(' ')
+    if private and "video" in private:
+        width, height, ms_duration = private["video"].split(" ")
         video = {
-            'width': int(width),
-            'height': int(height),
-            'ms_duration': int(ms_duration),
+            "width": int(width),
+            "height": int(height),
+            "ms_duration": int(ms_duration),
         }
-        del private['video']
-    if not video and 'videoMediaMetadata' in data:
+        del private["video"]
+    if not video and "videoMediaMetadata" in data:
         video = {
-            'width': data['videoMediaMetadata']['width'],
-            'height': data['videoMediaMetadata']['height'],
-            'ms_duration': data['videoMediaMetadata']['durationMillis'],
+            "width": data["videoMediaMetadata"]["width"],
+            "height": data["videoMediaMetadata"]["height"],
+            "ms_duration": data["videoMediaMetadata"]["durationMillis"],
         }
 
     return {
-        'id': id_,
-        'name': data['name'],
-        'trashed': data['trashed'],
-        'created': data['createdTime'],
-        'modified': data['modifiedTime'],
-        'parent_list': data.get('parents', None),
-        'is_folder': is_folder,
-        'mime_type': None if is_folder else data['mimeType'],
-        'hash': data.get('md5Checksum', None),
-        'size': size,
-        'image': image,
-        'video': video,
-        'private': private,
+        "id": id_,
+        "name": data["name"],
+        "trashed": data["trashed"],
+        "created": data["createdTime"],
+        "modified": data["modifiedTime"],
+        "parent_list": data.get("parents", None),
+        "is_folder": is_folder,
+        "mime_type": None if is_folder else data["mimeType"],
+        "hash": data.get("md5Checksum", None),
+        "size": size,
+        "image": image,
+        "video": video,
+        "private": private,
     }
 
 

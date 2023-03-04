@@ -2,7 +2,6 @@ from urllib.parse import parse_qsl
 
 
 class FakeClient(object):
-
     def __init__(self):
         self._in_list = []
         self._out_list = []
@@ -10,13 +9,13 @@ class FakeClient(object):
 
     def post(self, url, headers=None, data=None, *args, **kwargs):
         rv = {
-            'method': 'POST',
-            'url': url,
+            "method": "POST",
+            "url": url,
         }
         if headers is not None:
-            rv['headers'] = headers
+            rv["headers"] = headers
         if data is not None:
-            rv['data'] = parse_qsl(data)
+            rv["data"] = parse_qsl(data)
         self._in_list.append(rv)
 
         rv = self._out_list[self._out_index]
@@ -36,7 +35,6 @@ class FakeClient(object):
 
 
 class FakeResponse(object):
-
     def __init__(self, data):
         self._data = data
 

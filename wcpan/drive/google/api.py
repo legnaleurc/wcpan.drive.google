@@ -8,12 +8,11 @@ from .network import Network, Response, ContentProducer
 from .util import FOLDER_MIME_TYPE, OAuth2Manager
 
 
-API_ROOT = 'https://www.googleapis.com/drive/v3'
-UPLOAD_URI = 'https://www.googleapis.com/upload/drive/v3/files'
+API_ROOT = "https://www.googleapis.com/drive/v3"
+UPLOAD_URI = "https://www.googleapis.com/upload/drive/v3/files"
 
 
 class Client(object):
-
     def __init__(self, oauth: OAuth2Manager, timeout: int) -> None:
         self._oauth = oauth
         self._timeout = timeout
@@ -21,13 +20,14 @@ class Client(object):
         self._api = None
         self._raii = None
 
-    async def __aenter__(self) -> 'Client':
+    async def __aenter__(self) -> "Client":
         async with contextlib.AsyncExitStack() as stack:
             self._network = await stack.enter_async_context(
-                Network(self._oauth, self._timeout))
+                Network(self._oauth, self._timeout)
+            )
             self._api = {
-                'changes': Changes(self._network),
-                'files': Files(self._network),
+                "changes": Changes(self._network),
+                "files": Files(self._network),
             }
             self._raii = stack.pop_all()
 
@@ -43,36 +43,37 @@ class Client(object):
         await self._network.accept_oauth_code(code)
 
     @property
-    def changes(self) -> 'Changes':
-        return self._api['changes']
+    def changes(self) -> "Changes":
+        return self._api["changes"]
 
     @property
-    def files(self) -> 'Files':
-        return self._api['files']
+    def files(self) -> "Files":
+        return self._api["files"]
 
 
 class Changes(object):
-
     def __init__(self, network: Network) -> None:
         self._network = network
-        self._root = API_ROOT + '/changes'
+        self._root = API_ROOT + "/changes"
 
-    async def get_start_page_token(self,
+    async def get_start_page_token(
+        self,
         *,
         drive_id: str = None,
         fields: str = None,
     ) -> Response:
         args = {}
         if drive_id is not None:
-            args['driveId'] = drive_id
+            args["driveId"] = drive_id
         if fields is not None:
-            args['fields'] = fields
+            args["fields"] = fields
 
-        uri = self._root + '/startPageToken'
-        rv = await self._network.fetch('GET', uri, args)
+        uri = self._root + "/startPageToken"
+        rv = await self._network.fetch("GET", uri, args)
         return rv
 
-    async def list_(self,
+    async def list_(
+        self,
         page_token: str,
         *,
         drive_id: str = None,
@@ -84,48 +85,49 @@ class Changes(object):
         spaces: str = None,
     ) -> Response:
         args = {
-            'pageToken': page_token,
+            "pageToken": page_token,
         }
         if drive_id is not None:
-            args['driveId'] = drive_id
+            args["driveId"] = drive_id
         if fields is not None:
-            args['fields'] = fields
+            args["fields"] = fields
         if include_corpus_removals is not None:
-            args['includeCorpusRemovals'] = include_corpus_removals
+            args["includeCorpusRemovals"] = include_corpus_removals
         if include_removed is not None:
-            args['includeRemoved'] = include_removed
+            args["includeRemoved"] = include_removed
         if page_size is not None:
-            args['pageSize'] = page_size
+            args["pageSize"] = page_size
         if restrict_to_my_drive is not None:
-            args['restrictToMyDrive'] = restrict_to_my_drive
+            args["restrictToMyDrive"] = restrict_to_my_drive
         if spaces is not None:
-            args['spaces'] = spaces
+            args["spaces"] = spaces
 
-        rv = await self._network.fetch('GET', self._root, args)
+        rv = await self._network.fetch("GET", self._root, args)
         return rv
 
 
 class Files(object):
-
     def __init__(self, network: Network) -> None:
         self._network = network
-        self._root = API_ROOT + '/files'
+        self._root = API_ROOT + "/files"
 
     # only for metadata
-    async def get(self,
+    async def get(
+        self,
         file_id: str,
         *,
         fields: str = None,
     ) -> Response:
         args = {}
         if fields is not None:
-            args['fields'] = fields
+            args["fields"] = fields
 
-        uri = self._root + '/' + file_id
-        rv = await self._network.fetch('GET', uri, args)
+        uri = self._root + "/" + file_id
+        rv = await self._network.fetch("GET", uri, args)
         return rv
 
-    async def list_(self,
+    async def list_(
+        self,
         *,
         corpora: str = None,
         drive_id: str = None,
@@ -138,46 +140,48 @@ class Files(object):
     ) -> Response:
         args = {}
         if corpora is not None:
-            args['corpora'] = corpora
+            args["corpora"] = corpora
         if drive_id is not None:
-            args['driveId'] = drive_id
+            args["driveId"] = drive_id
         if fields is not None:
-            args['fields'] = fields
+            args["fields"] = fields
         if order_by is not None:
-            args['orderBy'] = order_by
+            args["orderBy"] = order_by
         if page_size is not None:
-            args['pageSize'] = page_size
+            args["pageSize"] = page_size
         if page_token is not None:
-            args['pageToken'] = page_token
+            args["pageToken"] = page_token
         if q is not None:
-            args['q'] = q
+            args["q"] = q
         if spaces is not None:
-            args['spaces'] = spaces
+            args["spaces"] = spaces
 
-        rv = await self._network.fetch('GET', self._root, args)
+        rv = await self._network.fetch("GET", self._root, args)
         return rv
 
-    async def download(self,
+    async def download(
+        self,
         file_id: str,
         range_: tuple[int, int],
         *,
         acknowledge_abuse: bool = None,
     ) -> Response:
         args = {
-            'alt': 'media',
+            "alt": "media",
         }
         if acknowledge_abuse is not None:
-            args['acknowledgeAbuse'] = acknowledge_abuse
+            args["acknowledgeAbuse"] = acknowledge_abuse
 
         headers = {
-            'Range': f'bytes={range_[0]}-{range_[1]}',
+            "Range": f"bytes={range_[0]}-{range_[1]}",
         }
 
-        uri = self._root + '/' + file_id
-        rv = await self._network.download('GET', uri, args, headers=headers)
+        uri = self._root + "/" + file_id
+        rv = await self._network.download("GET", uri, args, headers=headers)
         return rv
 
-    async def initiate_uploading(self,
+    async def initiate_uploading(
+        self,
         file_name: str,
         total_file_size: int,
         *,
@@ -187,45 +191,49 @@ class Files(object):
         app_properties: dict[str, str] = None,
     ) -> Response:
         if not file_name:
-            raise ValueError('file name is empty')
+            raise ValueError("file name is empty")
         if total_file_size <= 0:
-            raise ValueError('please use create_empty_file() to create an empty file')
+            raise ValueError("please use create_empty_file() to create an empty file")
 
         metadata = {
-            'name': file_name,
+            "name": file_name,
         }
         if parent_id is not None:
-            metadata['parents'] = [parent_id]
+            metadata["parents"] = [parent_id]
 
         props = {}
         if app_properties:
             props.update(app_properties)
         if media_info and media_info.is_image:
-            props['image'] = f'{media_info.width} {media_info.height}'
+            props["image"] = f"{media_info.width} {media_info.height}"
         if media_info and media_info.is_video:
-            props['video'] = f'{media_info.width} {media_info.height} {media_info.ms_duration}'
+            props[
+                "video"
+            ] = f"{media_info.width} {media_info.height} {media_info.ms_duration}"
         if props:
-            metadata['appProperties'] = props
+            metadata["appProperties"] = props
 
         metadata = json.dumps(metadata)
-        metadata = metadata.encode('utf-8')
+        metadata = metadata.encode("utf-8")
         headers = {
-            'X-Upload-Content-Length': total_file_size,
-            'Content-Type': 'application/json; charset=UTF-8',
-            'Content-Length': len(metadata),
+            "X-Upload-Content-Length": total_file_size,
+            "Content-Type": "application/json; charset=UTF-8",
+            "Content-Length": len(metadata),
         }
         if mime_type is not None:
-            headers['X-Upload-Content-Type'] = mime_type
+            headers["X-Upload-Content-Type"] = mime_type
 
         args = {
-            'uploadType': 'resumable',
+            "uploadType": "resumable",
         }
 
-        rv = await self._network.fetch('POST', UPLOAD_URI, args,
-                                       headers=headers, body=metadata)
+        rv = await self._network.fetch(
+            "POST", UPLOAD_URI, args, headers=headers, body=metadata
+        )
         return rv
 
-    async def upload(self,
+    async def upload(
+        self,
         uri: str,
         producer: ContentProducer,
         offset: int,
@@ -234,69 +242,72 @@ class Files(object):
         mime_type: str = None,
     ) -> Response:
         if not uri:
-            raise ValueError('invalid session URI')
+            raise ValueError("invalid session URI")
         if not producer:
-            raise ValueError('invalid body producer')
+            raise ValueError("invalid body producer")
         if total_file_size <= 0:
-            raise ValueError('please use create_empty_file() to create an empty file')
+            raise ValueError("please use create_empty_file() to create an empty file")
         if offset < 0 or offset >= total_file_size:
-            raise ValueError('offset is out of range')
+            raise ValueError("offset is out of range")
 
         last_position = total_file_size - 1
         headers = {
-            'Content-Length': total_file_size - offset,
-            'Content-Range': f'bytes {offset}-{last_position}/{total_file_size}',
+            "Content-Length": total_file_size - offset,
+            "Content-Range": f"bytes {offset}-{last_position}/{total_file_size}",
         }
         if mime_type is not None:
-            headers['Content-Type'] = mime_type
+            headers["Content-Type"] = mime_type
 
         # Producer may raise timeout error, not the upload itself.
-        rv = await self._network.upload('PUT', uri, headers=headers,
-                                        body=producer)
+        rv = await self._network.upload("PUT", uri, headers=headers, body=producer)
         return rv
 
-    async def get_upload_status(self,
+    async def get_upload_status(
+        self,
         uri: str,
         total_file_size: int,
     ) -> Response:
         if not uri:
-            raise ValueError('invalid session URI')
+            raise ValueError("invalid session URI")
         if total_file_size <= 0:
-            raise ValueError('please use create_empty_file() to create an empty file')
+            raise ValueError("please use create_empty_file() to create an empty file")
 
         headers = {
-            'Content-Length': 0,
-            'Content-Range': f'bytes */{total_file_size}',
+            "Content-Length": 0,
+            "Content-Range": f"bytes */{total_file_size}",
         }
-        rv = await self._network.fetch('PUT', uri, headers=headers)
+        rv = await self._network.fetch("PUT", uri, headers=headers)
         return rv
 
-    async def create_folder(self,
+    async def create_folder(
+        self,
         folder_name: str,
         *,
         parent_id: str = None,
         app_properties: dict[str, str] = None,
     ) -> Response:
         metadata = {
-            'name': folder_name,
-            'mimeType': FOLDER_MIME_TYPE,
+            "name": folder_name,
+            "mimeType": FOLDER_MIME_TYPE,
         }
         if parent_id is not None:
-            metadata['parents'] = [parent_id]
+            metadata["parents"] = [parent_id]
         if app_properties:
-            metadata['appProperties'] = app_properties
+            metadata["appProperties"] = app_properties
         metadata = json.dumps(metadata)
-        metadata = metadata.encode('utf-8')
+        metadata = metadata.encode("utf-8")
         headers = {
-            'Content-Type': 'application/json; charset=UTF-8',
-            'Content-Length': len(metadata),
+            "Content-Type": "application/json; charset=UTF-8",
+            "Content-Length": len(metadata),
         }
 
-        rv = await self._network.fetch('POST', self._root, headers=headers,
-                                       body=metadata)
+        rv = await self._network.fetch(
+            "POST", self._root, headers=headers, body=metadata
+        )
         return rv
 
-    async def create_empty_file(self,
+    async def create_empty_file(
+        self,
         file_name: str,
         *,
         parent_id: str = None,
@@ -304,31 +315,33 @@ class Files(object):
         app_properties: dict[str, str] = None,
     ) -> Response:
         if not file_name:
-            raise ValueError('file name is empty')
+            raise ValueError("file name is empty")
 
         metadata = {
-            'name': file_name,
+            "name": file_name,
         }
         if parent_id is not None:
-            metadata['parents'] = [parent_id]
+            metadata["parents"] = [parent_id]
         if mime_type is not None:
-            metadata['mimeType'] = mime_type
+            metadata["mimeType"] = mime_type
         else:
-            metadata['mimeType'] = 'application/octet-stream'
+            metadata["mimeType"] = "application/octet-stream"
         if app_properties:
-            metadata['appProperties'] = app_properties
+            metadata["appProperties"] = app_properties
         metadata = json.dumps(metadata)
-        metadata = metadata.encode('utf-8')
+        metadata = metadata.encode("utf-8")
         headers = {
-            'Content-Type': 'application/json; charset=UTF-8',
-            'Content-Length': len(metadata),
+            "Content-Type": "application/json; charset=UTF-8",
+            "Content-Length": len(metadata),
         }
 
-        rv = await self._network.fetch('POST', self._root, headers=headers,
-                                       body=metadata)
+        rv = await self._network.fetch(
+            "POST", self._root, headers=headers, body=metadata
+        )
         return rv
 
-    async def update(self,
+    async def update(
+        self,
         file_id: str,
         *,
         add_parents: list[str] = None,
@@ -340,40 +353,43 @@ class Files(object):
     ) -> Response:
         args = {}
         if add_parents is not None:
-            args['addParents'] = ','.join(add_parents)
+            args["addParents"] = ",".join(add_parents)
         if remove_parents is not None:
-            args['removeParents'] = ','.join(remove_parents)
+            args["removeParents"] = ",".join(remove_parents)
 
         metadata = {}
         if name is not None:
-            metadata['name'] = name
+            metadata["name"] = name
         if trashed is not None:
-            metadata['trashed'] = trashed
+            metadata["trashed"] = trashed
 
         props = {}
         if app_properties:
             props.update(app_properties)
         if media_info and media_info.is_image:
-            props['image'] = f'{media_info.width} {media_info.height}'
+            props["image"] = f"{media_info.width} {media_info.height}"
         if media_info and media_info.is_video:
-            props['video'] = f'{media_info.width} {media_info.height} {media_info.ms_duration}'
+            props[
+                "video"
+            ] = f"{media_info.width} {media_info.height} {media_info.ms_duration}"
         if props:
-            metadata['appProperties'] = props
+            metadata["appProperties"] = props
 
         if not args and not metadata:
-            raise ValueError('not enough parameter')
+            raise ValueError("not enough parameter")
 
         now = arrow.utcnow()
-        metadata['modifiedTime'] = now.isoformat()
+        metadata["modifiedTime"] = now.isoformat()
 
         metadata = json.dumps(metadata)
-        metadata = metadata.encode('utf-8')
+        metadata = metadata.encode("utf-8")
         headers = {
-            'Content-Type': 'application/json; charset=UTF-8',
-            'Content-Length': len(metadata),
+            "Content-Type": "application/json; charset=UTF-8",
+            "Content-Length": len(metadata),
         }
 
-        uri = self._root + '/' + file_id
-        rv = await self._network.fetch('PATCH', uri, args, headers=headers,
-                                       body=metadata)
+        uri = self._root + "/" + file_id
+        rv = await self._network.fetch(
+            "PATCH", uri, args, headers=headers, body=metadata
+        )
         return rv

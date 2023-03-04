@@ -21,15 +21,15 @@ class NetworkError(DriveError):
 
 
 class ResponseError(DriveError):
-
-    def __init__(self,
+    def __init__(
+        self,
         status: str,
         response: aiohttp.ClientResponse,
         json_: dict[str, Any],
     ) -> None:
         self._status = status
         self._response = response
-        self._message = f'{self.status} {self._response.reason} - {json_}'
+        self._message = f"{self.status} {self._response.reason} - {json_}"
         self._json = json_
 
     def __str__(self) -> str:
