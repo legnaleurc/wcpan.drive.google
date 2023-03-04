@@ -1,0 +1,29 @@
+[tool.poetry]
+name = "wcpan-drive-google"
+version = "8.0.1"
+description = "Google Drive driver for wcpan.drive"
+authors = ["Wei-Cheng Pan <legnaleurc@gmail.com>"]
+license = "MIT"
+readme = "README.md"
+packages = [{include = "wcpan"}]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+
+[tool.poetry.dependencies]
+python = "^3.9"
+PyYAML = "^5.3"
+aiohttp = "^3.6"
+arrow = "^0.17"
+"wcpan.drive.core" = "^3.0"
+"wcpan.logger" = "^1.2"
+
+[tool.poetry.group.dev.dependencies]
+black = "^23.1.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
