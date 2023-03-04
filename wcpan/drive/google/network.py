@@ -9,7 +9,6 @@ from typing import (
     AsyncIterator,
     Callable,
     Generator,
-    Union,
 )
 
 import aiohttp
@@ -30,7 +29,7 @@ BACKOFF_FACTOR = 2
 BACKOFF_STATUSES = set(("403", "408", "429", "500", "502", "503", "504"))
 
 ContentProducer = Callable[[], AsyncGenerator[bytes, None]]
-ReadableContent = Union[bytes, ContentProducer]
+ReadableContent = bytes | ContentProducer
 
 
 class Network(object):
