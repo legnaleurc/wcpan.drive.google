@@ -7,6 +7,7 @@ from typing import (
     AsyncGenerator,
     AsyncIterator,
     Generator,
+    TypeAlias,
 )
 
 from wcpan.logger import INFO, DEBUG, EXCEPTION, WARNING
@@ -37,7 +38,7 @@ from .exceptions import DownloadAbusiveFileError, ResponseError
 from .util import FOLDER_MIME_TYPE, OAuth2Manager, OAuth2Storage
 
 
-GoogleFileDict = dict[str, Any]
+GoogleFileDict: TypeAlias = dict[str, Any]
 
 
 FILE_FIELDS = ",".join(
