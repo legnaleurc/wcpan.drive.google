@@ -7,7 +7,6 @@ from typing import (
     AsyncGenerator,
     AsyncIterator,
     Generator,
-    Optional,
 )
 
 from wcpan.logger import INFO, DEBUG, EXCEPTION, WARNING
@@ -155,7 +154,7 @@ class GoogleDriver(RemoteDriver):
         folder_name: str,
         *,
         exist_ok: bool,
-        private: Optional[PrivateDict],
+        private: PrivateDict | None,
     ) -> Node:
         # do not create again if there is a same file
         node = await self._fetch_node_by_name_from_parent_id(
@@ -183,10 +182,10 @@ class GoogleDriver(RemoteDriver):
         parent_node: Node,
         file_name: str,
         *,
-        file_size: Optional[int],
-        mime_type: Optional[str],
-        media_info: Optional[MediaInfo],
-        private: Optional[PrivateDict],
+        file_size: int | None,
+        mime_type: str | None,
+        media_info: MediaInfo | None,
+        private: PrivateDict | None,
     ) -> WritableFile:
         # do not upload if remote exists a same file
         node = await self._fetch_node_by_name_from_parent_id(
@@ -220,8 +219,8 @@ class GoogleDriver(RemoteDriver):
         self,
         node: Node,
         *,
-        new_parent: Optional[Node],
-        new_name: Optional[str],
+        new_parent: Node | None,
+        new_name: str | None,
     ) -> Node:
         fnbnfpi = self._fetch_node_by_name_from_parent_id
         parent_id = node.parent_id if not new_parent else new_parent.id_
@@ -491,7 +490,7 @@ class GoogleWritableFile(WritableFile):
         feed.result()
         return len(chunk)
 
-    async def node(self) -> Optional[Node]:
+    async def node(self) -> Node | None:
         if not self._rv:
             return None
         node = await self._get_node(self._rv["id"])

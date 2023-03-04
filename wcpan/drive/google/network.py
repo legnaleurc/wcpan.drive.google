@@ -9,7 +9,6 @@ from typing import (
     AsyncIterator,
     Callable,
     Generator,
-    Optional,
     Union,
 )
 
@@ -167,9 +166,9 @@ class Network(object):
         self,
         method: str,
         url: str,
-        args: Optional[dict[str, Any]],
-        headers: Optional[dict[str, str]],
-        body: Optional[ReadableContent],
+        args: dict[str, Any] | None,
+        headers: dict[str, str] | None,
+        body: ReadableContent | None,
     ) -> dict[str, Any]:
         kwargs = {
             "method": method,
@@ -184,7 +183,7 @@ class Network(object):
 
     async def _prepare_headers(
         self,
-        headers: Optional[dict[str, str]],
+        headers: dict[str, str] | None,
     ) -> dict[str, str]:
         if headers is None:
             h = {}
