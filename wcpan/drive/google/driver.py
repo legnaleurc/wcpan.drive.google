@@ -10,6 +10,8 @@ from typing import (
     TypeAlias,
 )
 
+from aiohttp import ClientResponse
+from aiohttp.web import StreamResponse
 from wcpan.logger import INFO, DEBUG, EXCEPTION, WARNING
 from wcpan.drive.core.abc import (
     RemoteDriver,
@@ -380,7 +382,7 @@ class GoogleReadableFile(ReadableFile):
     async def node(self) -> Node:
         return self._node
 
-    async def _download_from_offset(self) -> "aiohttp.StreamResponse":
+    async def _download_from_offset(self) -> StreamResponse:
         try:
             return await self._download(
                 file_id=self._node.id_,
@@ -544,7 +546,7 @@ class GoogleWritableFile(WritableFile):
         url = rv.get_header("Location")
         return url
 
-    async def _upload_to(self) -> "aiohttp.ClientResponse":
+    async def _upload_to(self) -> ClientResponse:
         try:
             rv = await self._upload(
                 self._url,
@@ -584,7 +586,7 @@ class GoogleWritableFile(WritableFile):
         rv = int(rv.group(1))
         return rv
 
-    async def _touch_empty(self) -> "aiohttp.ClientResponse":
+    async def _touch_empty(self) -> ClientResponse:
         rv = await self._touch(
             self._name,
             parent_id=self._parent_id,
