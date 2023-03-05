@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "wcpan-drive-google"
+name = "wcpan.drive.google"
 version = "8.0.1"
 description = "Google Drive driver for wcpan.drive"
 authors = ["Wei-Cheng Pan <legnaleurc@gmail.com>"]
