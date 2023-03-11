@@ -211,7 +211,6 @@ mypy-extensions = ">=0.4.3"
 packaging = ">=22.0"
 pathspec = ">=0.9.0"
 platformdirs = ">=2"
-tomli = {version = ">=1.1.0", markers = "python_version < \"3.11\""}
 
 [package.extras]
 colorama = ["colorama (>=0.4.3)"]
@@ -641,45 +640,20 @@ files = [
 ]
 
 [[package]]
-name = "tomli"
-version = "2.0.1"
-description = "A lil' TOML parser"
-category = "dev"
-optional = false
-python-versions = ">=3.7"
-files = [
-    {file = "tomli-2.0.1-py3-none-any.whl", hash = "sha256:939de3e7a6161af0c887ef91b7d41a53e7c5a1ca976325f429cb46ea9bc30ecc"},
-    {file = "tomli-2.0.1.tar.gz", hash = "sha256:de526c12914f0c550d15924c62d72abc48d6fe7364aa87328337a31007fe8a4f"},
-]
-
-[[package]]
 name = "wcpan-drive-core"
-version = "3.2.0"
+version = "3.2.1"
 description = "asynchronous generic cloud drive library"
 category = "main"
 optional = false
-python-versions = ">=3.10,<4.0"
+python-versions = ">=3.11,<4.0"
 files = [
-    {file = "wcpan_drive_core-3.2.0-py3-none-any.whl", hash = "sha256:8f8d24c2fa63850498b400c9f014c282ab5cee0f60ab9541910a2390eee4cd9a"},
-    {file = "wcpan_drive_core-3.2.0.tar.gz", hash = "sha256:0d11756e1f702ba5f35f84095bf0cf0dc3b65d5c76171495f6a38bcc376cf2f9"},
+    {file = "wcpan_drive_core-3.2.1-py3-none-any.whl", hash = "sha256:fdde18927e6b495ed7a95af09ea72ca810da518648839c0676ba0ce9d3bcd445"},
+    {file = "wcpan_drive_core-3.2.1.tar.gz", hash = "sha256:4982232342be56e20fa3af3e0a36997c457889154adb22e560b2941da7fb88f2"},
 ]
 
 [package.dependencies]
 arrow = ">=1.2.3,<2.0.0"
 PyYAML = ">=6.0,<7.0"
-"wcpan.logger" = ">=1.2,<2.0"
-
-[[package]]
-name = "wcpan-logger"
-version = "1.5.0"
-description = "A RAII style logging module"
-category = "main"
-optional = false
-python-versions = ">=3.5"
-files = [
-    {file = "wcpan.logger-1.5.0-py3-none-any.whl", hash = "sha256:6b6378a077008fe30051eee0d0a2ccd19e62b8f48975f1d1fd7b0574b3497a61"},
-    {file = "wcpan.logger-1.5.0.tar.gz", hash = "sha256:644ec36334ebd860235fee0080a5a92dd06cfb39588b94cc237b46c1b0ec46b7"},
-]
 
 [[package]]
 name = "yarl"
@@ -771,5 +745,5 @@ multidict = ">=4.0"
 
 [metadata]
 lock-version = "2.0"
-python-versions = "^3.10"
-content-hash = "3a37d666033f315efa6eafde6406d4d63f92e6c6bada8de58efaa852e36de259"
+python-versions = "^3.11"
+content-hash = "c06cb3e142abbc610d968f49920f9d8fb73973a76081615edf10beb2430aa24d"
