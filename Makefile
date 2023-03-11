@@ -1,9 +1,11 @@
+RM := rm -rf
 PYTHON := poetry run -- python3
 BLACK := poetry run -- black
 
-PKG_FILES := pyproject.toml poetry.lock
-PKG_DIR := .venv
-BLD_LOCK := $(PKG_DIR)/pyvenv.cfg
+PKG_FILES := pyproject.toml
+PKG_LOCK := poetry.lock
+ENV_DIR := .venv
+ENV_LOCK := $(ENV_DIR)/pyvenv.cfg
 
 .PHONY: all format lint clean purge test build publish venv
 
@@ -16,10 +18,10 @@ lint: venv
 	$(BLACK) --check tests wcpan
 
 clean:
-	rm -rf ./dist ./build ./*.egg-info
+	$(RM) ./dist ./build ./*.egg-info
 
 purge: clean
-	rm -rf $(PKG_DIR)
+	$(RM) -rf $(ENV_DIR)
 
 test: venv
 	$(PYTHON) -m compileall wcpan
@@ -31,8 +33,12 @@ build: clean venv
 publish: venv
 	poetry publish
 
-venv: $(BLD_LOCK)
+venv: $(ENV_LOCK)
 
-$(BLD_LOCK): $(PKG_FILES)
+$(ENV_LOCK): $(PKG_LOCK)
 	poetry install
+	touch $@
+
+$(PKG_LOCK): $(PKG_FILES)
+	poetry lock
 	touch $@
