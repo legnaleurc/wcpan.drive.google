@@ -1,3 +1,4 @@
+from logging import getLogger
 from typing import TypedDict, Any
 import asyncio
 import contextlib
@@ -9,7 +10,6 @@ import aiohttp
 import yaml
 
 from wcpan.drive.core.exceptions import UnauthorizedError
-from wcpan.logger import DEBUG, EXCEPTION
 
 from .exceptions import AuthenticationError, CredentialFileError, TokenFileError
 
@@ -183,13 +183,13 @@ class OAuth2Manager(object):
         async with self._guard():
             try:
                 await self._refresh(session)
-            except Exception as e:
-                EXCEPTION("wcpan.drive.google", e) << "error on refresh token"
+            except Exception:
+                getLogger(__name__).exception("error on refresh token")
                 self._error = True
                 raise
             self._error = False
 
-        DEBUG("wcpan.drive.google") << "refresh access token"
+        getLogger(__name__).debug("refresh access token")
 
     @contextlib.asynccontextmanager
     async def _guard(self):

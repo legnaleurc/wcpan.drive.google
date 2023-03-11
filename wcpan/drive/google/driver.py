@@ -1,6 +1,7 @@
 import asyncio
 import contextlib
 import hashlib
+from logging import getLogger
 import re
 from typing import (
     Any,
@@ -12,7 +13,6 @@ from typing import (
 
 from aiohttp import ClientResponse
 from aiohttp.web import StreamResponse
-from wcpan.logger import INFO, DEBUG, EXCEPTION, WARNING
 from wcpan.drive.core.abc import (
     RemoteDriver,
     ReadableFile,
@@ -99,7 +99,8 @@ class GoogleDriver(RemoteDriver):
             self._raii = stack.pop_all()
         return self
 
-    async def __aexit__(self, exc_type, exc, tb) -> bool:
+    async def __aexit__(self, exc_type, exc, tb) -> None:
+        assert self._raii
         await self._raii.aclose()
         self._client = None
         self._raii = None
@@ -112,6 +113,7 @@ class GoogleDriver(RemoteDriver):
         return "1"
 
     async def fetch_root_node(self) -> Node:
+        assert self._client
         rv = await self._client.files.get("root", fields=FILE_FIELDS)
         rv = rv.json
         rv["name"] = None
@@ -166,7 +168,7 @@ class GoogleDriver(RemoteDriver):
         )
         if node:
             if exist_ok:
-                INFO("wcpan.drive.google") << "skipped (existing)" << folder_name
+                getLogger(__name__).info(f"skipped (existing) {folder_name}")
                 return node
             else:
                 raise NodeConflictedError(node)
@@ -276,7 +278,7 @@ class GoogleDriver(RemoteDriver):
             rv = await self._client.files.list_(q=query, fields=fields)
         except ResponseError as e:
             if e.status == "400":
-                DEBUG("wcpan.drive.google") << "invalid query string:" << query
+                getLogger(__name__).debug(f"invalid query string: {query}")
                 raise InvalidNameError(name) from e
             if e.status == "404":
                 raise ParentNotFoundError(parent_id) from e
@@ -391,7 +393,7 @@ class GoogleReadableFile(ReadableFile):
             )
         except DownloadAbusiveFileError:
             # FIXME automatically accept abuse files for now
-            WARNING("wcpan.drive.google") << f"{self._node.id_} is an abusive file"
+            getLogger(__name__).warning(f"{self._node.id_} is an abusive file")
             return await self._download(
                 file_id=self._node.id_,
                 range_=(self._offset, self._node.size),
@@ -507,8 +509,8 @@ class GoogleWritableFile(WritableFile):
         try:
             rv = await self._bg
             return rv
-        except (Exception, asyncio.CancelledError) as e:
-            EXCEPTION("wcpan.drive.google", e) << "close"
+        except (Exception, asyncio.CancelledError):
+            getLogger(__name__).exception("closing request")
         finally:
             self._queue = asyncio.Queue(maxsize=1)
             self._bg = None

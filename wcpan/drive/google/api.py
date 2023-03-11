@@ -1,5 +1,9 @@
+from __future__ import annotations
+
+
 import contextlib
 import json
+from typing import Any, Self
 
 import arrow
 from wcpan.drive.core.types import MediaInfo
@@ -20,7 +24,7 @@ class Client(object):
         self._api = None
         self._raii = None
 
-    async def __aenter__(self) -> "Client":
+    async def __aenter__(self) -> Self:
         async with contextlib.AsyncExitStack() as stack:
             self._network = await stack.enter_async_context(
                 Network(self._oauth, self._timeout)
@@ -33,21 +37,25 @@ class Client(object):
 
         return self
 
-    async def __aexit__(self, type_, value, traceback) -> bool:
+    async def __aexit__(self, type_, value, traceback) -> None:
+        assert self._raii
         await self._raii.aclose()
         self._api = None
         self._network = None
         self._raii = None
 
     async def accept_oauth_code(self, code: str) -> None:
+        assert self._network
         await self._network.accept_oauth_code(code)
 
     @property
-    def changes(self) -> "Changes":
+    def changes(self) -> Changes:
+        assert self._api
         return self._api["changes"]
 
     @property
-    def files(self) -> "Files":
+    def files(self) -> Files:
+        assert self._api
         return self._api["files"]
 
 
@@ -59,8 +67,8 @@ class Changes(object):
     async def get_start_page_token(
         self,
         *,
-        drive_id: str = None,
-        fields: str = None,
+        drive_id: str | None = None,
+        fields: str | None = None,
     ) -> Response:
         args = {}
         if drive_id is not None:
@@ -76,15 +84,15 @@ class Changes(object):
         self,
         page_token: str,
         *,
-        drive_id: str = None,
-        fields: str = None,
-        include_corpus_removals: bool = None,
-        include_removed: bool = None,
-        page_size: int = None,
-        restrict_to_my_drive: bool = None,
-        spaces: str = None,
+        drive_id: str | None = None,
+        fields: str | None = None,
+        include_corpus_removals: bool | None = None,
+        include_removed: bool | None = None,
+        page_size: int | None = None,
+        restrict_to_my_drive: bool | None = None,
+        spaces: str | None = None,
     ) -> Response:
-        args = {
+        args: dict[str, Any] = {
             "pageToken": page_token,
         }
         if drive_id is not None:
@@ -116,7 +124,7 @@ class Files(object):
         self,
         file_id: str,
         *,
-        fields: str = None,
+        fields: str | None = None,
     ) -> Response:
         args = {}
         if fields is not None:
@@ -129,14 +137,14 @@ class Files(object):
     async def list_(
         self,
         *,
-        corpora: str = None,
-        drive_id: str = None,
-        fields: str = None,
-        order_by: str = None,
-        page_size: int = None,
-        page_token: str = None,
-        q: str = None,
-        spaces: str = None,
+        corpora: str | None = None,
+        drive_id: str | None = None,
+        fields: str | None = None,
+        order_by: str | None = None,
+        page_size: int | None = None,
+        page_token: str | None = None,
+        q: str | None = None,
+        spaces: str | None = None,
     ) -> Response:
         args = {}
         if corpora is not None:
@@ -164,9 +172,9 @@ class Files(object):
         file_id: str,
         range_: tuple[int, int],
         *,
-        acknowledge_abuse: bool = None,
+        acknowledge_abuse: bool | None = None,
     ) -> Response:
-        args = {
+        args: dict[str, Any] = {
             "alt": "media",
         }
         if acknowledge_abuse is not None:
@@ -185,17 +193,17 @@ class Files(object):
         file_name: str,
         total_file_size: int,
         *,
-        parent_id: str = None,
-        mime_type: str = None,
-        media_info: MediaInfo = None,
-        app_properties: dict[str, str] = None,
+        parent_id: str | None = None,
+        mime_type: str | None = None,
+        media_info: MediaInfo | None = None,
+        app_properties: dict[str, str] | None = None,
     ) -> Response:
         if not file_name:
             raise ValueError("file name is empty")
         if total_file_size <= 0:
             raise ValueError("please use create_empty_file() to create an empty file")
 
-        metadata = {
+        metadata: dict[str, Any] = {
             "name": file_name,
         }
         if parent_id is not None:
@@ -213,12 +221,12 @@ class Files(object):
         if props:
             metadata["appProperties"] = props
 
-        metadata = json.dumps(metadata)
-        metadata = metadata.encode("utf-8")
+        body = json.dumps(metadata)
+        body = body.encode("utf-8")
         headers = {
             "X-Upload-Content-Length": total_file_size,
             "Content-Type": "application/json; charset=UTF-8",
-            "Content-Length": len(metadata),
+            "Content-Length": len(body),
         }
         if mime_type is not None:
             headers["X-Upload-Content-Type"] = mime_type
@@ -228,7 +236,7 @@ class Files(object):
         }
 
         rv = await self._network.fetch(
-            "POST", UPLOAD_URI, args, headers=headers, body=metadata
+            "POST", UPLOAD_URI, args, headers=headers, body=body
         )
         return rv
 
@@ -239,7 +247,7 @@ class Files(object):
         offset: int,
         total_file_size: int,
         *,
-        mime_type: str = None,
+        mime_type: str | None = None,
     ) -> Response:
         if not uri:
             raise ValueError("invalid session URI")
@@ -283,10 +291,10 @@ class Files(object):
         self,
         folder_name: str,
         *,
-        parent_id: str = None,
-        app_properties: dict[str, str] = None,
+        parent_id: str | None = None,
+        app_properties: dict[str, str] | None = None,
     ) -> Response:
-        metadata = {
+        metadata: dict[str, Any] = {
             "name": folder_name,
             "mimeType": FOLDER_MIME_TYPE,
         }
@@ -294,30 +302,28 @@ class Files(object):
             metadata["parents"] = [parent_id]
         if app_properties:
             metadata["appProperties"] = app_properties
-        metadata = json.dumps(metadata)
-        metadata = metadata.encode("utf-8")
+        body = json.dumps(metadata)
+        body = body.encode("utf-8")
         headers = {
             "Content-Type": "application/json; charset=UTF-8",
-            "Content-Length": len(metadata),
+            "Content-Length": len(body),
         }
 
-        rv = await self._network.fetch(
-            "POST", self._root, headers=headers, body=metadata
-        )
+        rv = await self._network.fetch("POST", self._root, headers=headers, body=body)
         return rv
 
     async def create_empty_file(
         self,
         file_name: str,
         *,
-        parent_id: str = None,
-        mime_type: str = None,
-        app_properties: dict[str, str] = None,
+        parent_id: str | None = None,
+        mime_type: str | None = None,
+        app_properties: dict[str, str] | None = None,
     ) -> Response:
         if not file_name:
             raise ValueError("file name is empty")
 
-        metadata = {
+        metadata: dict[str, Any] = {
             "name": file_name,
         }
         if parent_id is not None:
@@ -328,28 +334,26 @@ class Files(object):
             metadata["mimeType"] = "application/octet-stream"
         if app_properties:
             metadata["appProperties"] = app_properties
-        metadata = json.dumps(metadata)
-        metadata = metadata.encode("utf-8")
+        body = json.dumps(metadata)
+        body = body.encode("utf-8")
         headers = {
             "Content-Type": "application/json; charset=UTF-8",
-            "Content-Length": len(metadata),
+            "Content-Length": len(body),
         }
 
-        rv = await self._network.fetch(
-            "POST", self._root, headers=headers, body=metadata
-        )
+        rv = await self._network.fetch("POST", self._root, headers=headers, body=body)
         return rv
 
     async def update(
         self,
         file_id: str,
         *,
-        add_parents: list[str] = None,
-        remove_parents: list[str] = None,
-        name: str = None,
-        trashed: bool = None,
-        app_properties: list[str, str] = None,
-        media_info: MediaInfo = None,
+        add_parents: list[str] | None = None,
+        remove_parents: list[str] | None = None,
+        name: str | None = None,
+        trashed: bool | None = None,
+        app_properties: dict[str, str] | None = None,
+        media_info: MediaInfo | None = None,
     ) -> Response:
         args = {}
         if add_parents is not None:

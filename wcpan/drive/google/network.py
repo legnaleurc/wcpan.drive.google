@@ -1,6 +1,10 @@
+from __future__ import annotations
+
+
 import asyncio
 import contextlib
 import enum
+from logging import getLogger
 import math
 import random
 from typing import (
@@ -14,7 +18,6 @@ from typing import (
 
 import aiohttp
 from wcpan.drive.core.exceptions import UnauthorizedError
-from wcpan.logger import DEBUG, EXCEPTION, WARNING
 
 from .util import OAuth2Manager
 from .exceptions import (
@@ -65,7 +68,7 @@ class Network(object):
         args: dict[str, Any] = None,
         headers: dict[str, str] = None,
         body: ReadableContent = None,
-    ) -> "JSONResponse":
+    ) -> JSONResponse:
         while True:
             kwargs = await self._prepare_kwargs(method, url, args, headers, body)
 
@@ -88,7 +91,7 @@ class Network(object):
         args: dict[str, Any] = None,
         headers: dict[str, str] = None,
         body: ReadableContent = None,
-    ) -> "JSONResponse":
+    ) -> JSONResponse:
         kwargs = await self._prepare_kwargs(method, url, args, headers, body)
         # NOTE Upload can take long time to send data, so we only set timeout
         # for socket connection.
@@ -155,9 +158,9 @@ class Network(object):
 
             try:
                 json_ = await response.json()
-            except aiohttp.ContentTypeError as e:
+            except aiohttp.ContentTypeError:
                 text = await response.text()
-                EXCEPTION("wcpan.drive.google", e) << text
+                getLogger(__name__).exception(text)
                 raise
 
             self._raiseError(status, response, json_)
@@ -237,7 +240,7 @@ class Network(object):
         power = 2**self._backoff_level
         s_delay = math.floor(seed * power * BACKOFF_FACTOR)
         s_delay = min(self._timeout, s_delay)
-        DEBUG("wcpan.drive.google") << "backoff for" << s_delay
+        getLogger(__name__).debug(f"backoff for {s_delay}")
         await asyncio.sleep(s_delay)
 
     def _raiseError(
@@ -360,7 +363,7 @@ async def backoff_needed(
         msg = await response.json()
         if not msg:
             # undefined behavior, probably a server problem, better backoff
-            WARNING("wcpan.drive.google") << "403 with empty error message"
+            getLogger(__name__).warning("403 with empty error message")
             return True
         domain = msg["error"]["errors"][0]["domain"]
         if domain != "usageLimits":
@@ -369,7 +372,7 @@ async def backoff_needed(
     # the request timedout
     if status == "408":
         # NOTE somehow this error shows html instead of json
-        WARNING("wcpan.drive.google") << "408 request timed out"
+        getLogger(__name__).warning("408 request timed out")
         # No need to backoff because in this case the whole request cannot be
         # resumed at all.
         return False
