@@ -7,7 +7,6 @@ from urllib.parse import urlencode, urlunparse, urlparse, parse_qs
 import json
 
 from aiohttp import ClientSession
-import yaml
 from wcpan.drive.core.exceptions import UnauthorizedError
 
 from .exceptions import AuthenticationError, CredentialFileError, TokenFileError
@@ -62,7 +61,7 @@ class OAuth2Storage(object):
             }
 
         with self._oauth_token.open("r") as fin:
-            token = yaml.safe_load(fin)
+            token = json.load(fin)
         version = token.get("version", 0)
         if version != OAUTH_TOKEN_VERSION:
             raise TokenFileError(f"invalid token version: {version}")
@@ -89,7 +88,7 @@ class OAuth2Storage(object):
 
         # save refresh token
         with self._oauth_token.open("w") as fout:
-            yaml.dump(token, fout, default_flow_style=False)
+            json.dump(token, fout)
 
 
 class OAuth2Manager(object):

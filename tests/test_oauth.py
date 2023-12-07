@@ -5,8 +5,6 @@ from unittest import TestCase, IsolatedAsyncioTestCase
 from unittest.mock import MagicMock
 import json
 
-import yaml
-
 from aiohttp.test_utils import AioHTTPTestCase
 from aiohttp.web import Application, Request, Response, HTTPBadRequest, json_response
 
@@ -19,7 +17,7 @@ class OAuth2StorageTestCase(TestCase):
         tmp = self.enterContext(TemporaryDirectory())
         self._work_path = Path(tmp)
         self._client_secret = self._work_path / "client_secret.json"
-        self._oauth_token = self._work_path / "oauth_token.yaml"
+        self._oauth_token = self._work_path / "oauth_token.json"
         self._storage = OAuth2Storage(
             client_secret=self._client_secret,
             oauth_token=self._oauth_token,
@@ -248,10 +246,10 @@ def write_default_config(client_secret: Path) -> None:
 
 def write_token(oauth_token: Path, dict_: dict[str, Any]) -> None:
     with oauth_token.open("w") as fout:
-        yaml.dump(dict_, fout)
+        json.dump(dict_, fout)
 
 
 def read_token(oauth_token: Path) -> dict[str, Any]:
     with oauth_token.open("r") as fin:
-        rv = yaml.safe_load(fin)
+        rv = json.load(fin)
     return rv
