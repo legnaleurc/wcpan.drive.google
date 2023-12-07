@@ -167,3 +167,7 @@ def normalize_changes(
 
         node = node_from_api(file_)
         yield False, node
+
+
+def utc_now() -> datetime:
+    return datetime.now(UTC)

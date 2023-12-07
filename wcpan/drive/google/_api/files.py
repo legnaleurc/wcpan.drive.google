@@ -5,11 +5,10 @@ import json
 import re
 
 from aiohttp import ClientResponse
-import arrow
 from wcpan.drive.core.types import MediaInfo
 
 from .._network import Network, QueryDict
-from .._lib import FOLDER_MIME_TYPE, GoogleFileDict, FILE_FIELDS
+from .._lib import FOLDER_MIME_TYPE, GoogleFileDict, FILE_FIELDS, utc_now
 from ..exceptions import UploadError
 
 
@@ -325,7 +324,7 @@ async def update(
     if not query and not metadata:
         raise ValueError("not enough parameter")
 
-    now = arrow.utcnow()
+    now = utc_now()
     metadata["modifiedTime"] = now.isoformat()
 
     metadata = json.dumps(metadata)
