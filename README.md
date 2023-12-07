@@ -1,32 +1,38 @@
 # wcpan.drive.google
 
-Google Drive driver for wcpan.drive.
+`FileService` extension for wcpan.drive which provides Google Drive support.
 
-Please use `wcpan.drive.google.driver.GoogleDriver` as the driver class.
+Please use `wcpan.drive.google.create_service` to create the file.
 
 ## Requirement
 
-Need a `client_secret.json` file provided in **config path**.
-You can download it from Google Developer Console.
+Need a `client_secret.json` file which can be downloaded from
+Google Developer Console.
 
-## Config Example
-
-In code:
+## Example
 
 ```python
-factory = DriveFactory()
-# put client_secret.json at here
-factory.config_path = '/path/to/config'
-# assign driver class
-factory.driver = 'wcpan.drive.google.driver.GoogleDriver'
-factory.load_config()
-```
+from functools import partial
 
-Or in `core.yaml`:
+from wcpan.drive.core import create_drive
+from wcpan.drive.google import create_service
 
-```yaml
-version: 1
-database: nodes.sqlite
-driver: wcpan.drive.google.driver.GoogleDriver
-middleware: []
+
+async def main():
+    # Your API credential.
+    client_secret = "/path/to/client_secret.json"
+    # Stores access token and refresh token.
+    oauth_token = "/path/to/oauth_token.json"
+
+    create_file_service = partial(
+        create_service,
+        client_secret=client_secret,
+        oauth_token=oauth_token,
+    )
+
+    async with create_drive(
+        file=create_file_service,
+        snapshot=...,
+    ) as drive:
+        ...
 ```
