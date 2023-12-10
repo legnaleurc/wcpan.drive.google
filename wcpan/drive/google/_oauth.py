@@ -1,21 +1,25 @@
+from asyncio import Condition
+from contextlib import asynccontextmanager
 from logging import getLogger
-from typing import TypedDict, Any
-import asyncio
-import contextlib
-import json
-import pathlib
+from pathlib import Path
+from typing import TypedDict
 from urllib.parse import urlencode, urlunparse, urlparse, parse_qs
+import json
 
-import aiohttp
+from aiohttp import ClientSession
 import yaml
-
 from wcpan.drive.core.exceptions import UnauthorizedError
 
 from .exceptions import AuthenticationError, CredentialFileError, TokenFileError
 
 
+OAUTH_TOKEN_VERSION = 1
+_OAUTH_SCOPES = [
+    "https://www.googleapis.com/auth/drive",
+]
+
+
 class OAuth2Config(TypedDict):
-    type: str
     client_id: str
     client_secret: str
     redirect_uri: str
@@ -28,36 +32,33 @@ class OAuth2Token(TypedDict):
     refresh_token: str
 
 
-FOLDER_MIME_TYPE = "application/vnd.google-apps.folder"
-OAUTH_TOKEN_VERSION = 1
-
-
 class OAuth2Storage(object):
     def __init__(
         self,
-        config_path: pathlib.Path,
-        data_path: pathlib.Path,
+        *,
+        client_secret: Path,
+        oauth_token: Path,
     ) -> None:
-        self._client_secret = config_path / "client_secret.json"
-        self._oauth_token = data_path / "oauth_token.yaml"
+        self._client_secret = client_secret
+        self._oauth_token = oauth_token
 
     def load_oauth2_config(self) -> OAuth2Config:
         with self._client_secret.open("r") as fin:
             config = json.load(fin)
 
-        if "web" in config:
-            web = config["web"]
-            return load_web(web)
-        else:
+        if "web" not in config:
             raise CredentialFileError(
                 "credential file not supported (only supports `web`)"
             )
 
+        web = config["web"]
+        return _load_web(web)
+
     def load_oauth2_token(self) -> OAuth2Token:
         if not self._oauth_token.is_file():
             return {
-                "access_token": None,
-                "refresh_token": None,
+                "access_token": "",
+                "refresh_token": "",
             }
 
         with self._oauth_token.open("r") as fin:
@@ -92,13 +93,9 @@ class OAuth2Storage(object):
 
 
 class OAuth2Manager(object):
-    _SCOPES = [
-        "https://www.googleapis.com/auth/drive",
-    ]
-
     def __init__(self, storage: OAuth2Storage) -> None:
         self._storage = storage
-        self._lock = asyncio.Condition()
+        self._lock = Condition()
         self._refreshing = False
         self._error = False
         self._oauth2_config: OAuth2Config = self._storage.load_oauth2_config()
@@ -122,7 +119,7 @@ class OAuth2Manager(object):
             # Essential for getting refresh token **everytime**.
             # See https://github.com/googleapis/google-api-python-client/issues/213 .
             "prompt": "consent",
-            "scope": " ".join(self._SCOPES),
+            "scope": " ".join(_OAUTH_SCOPES),
         }
         url = urlparse(self._oauth2_config["auth_uri"])
         url = urlunparse(
@@ -139,10 +136,10 @@ class OAuth2Manager(object):
 
     async def set_authenticated_token(
         self,
-        session: aiohttp.ClientSession,
+        session: ClientSession,
         code: str,
-    ) -> dict[str, Any]:
-        code = parse_authorized_code(code)
+    ) -> None:
+        code = _parse_authorized_code(code)
         headers = {"Content-Type": "application/x-www-form-urlencoded"}
         body = urlencode(
             {
@@ -168,7 +165,7 @@ class OAuth2Manager(object):
             raise AuthenticationError()
         return self.access_token
 
-    async def renew_token(self, session: aiohttp.ClientSession):
+    async def renew_token(self, session: ClientSession) -> None:
         if self._refreshing:
             async with self._lock:
                 await self._lock.wait()
@@ -191,7 +188,7 @@ class OAuth2Manager(object):
 
         getLogger(__name__).debug("refresh access token")
 
-    @contextlib.asynccontextmanager
+    @asynccontextmanager
     async def _guard(self):
         self._refreshing = True
         try:
@@ -207,7 +204,7 @@ class OAuth2Manager(object):
             self._oauth2_token["refresh_token"] = token["refresh_token"]
         self._storage.save_oauth2_token(self.access_token, self.refresh_token)
 
-    async def _refresh(self, session: aiohttp.ClientSession):
+    async def _refresh(self, session: ClientSession):
         headers = {
             "Content-Type": "application/x-www-form-urlencoded",
         }
@@ -228,9 +225,8 @@ class OAuth2Manager(object):
         self._save_token(token)
 
 
-def load_web(web: dict[str, str]) -> OAuth2Config:
+def _load_web(web: dict[str, str]) -> OAuth2Config:
     return {
-        "type": "web",
         "client_id": web["client_id"],
         "client_secret": web["client_secret"],
         "redirect_uri": web["redirect_uris"][0],
@@ -239,13 +235,7 @@ def load_web(web: dict[str, str]) -> OAuth2Config:
     }
 
 
-def reverse_cliend_id(client_id: str) -> str:
-    parts = client_id.split(".")
-    parts = parts[::-1]
-    return ".".join(parts)
-
-
-def parse_authorized_code(code: str) -> str:
+def _parse_authorized_code(code: str) -> str:
     if not code.startswith("http"):
         return code
 
