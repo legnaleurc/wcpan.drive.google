@@ -504,18 +504,14 @@ files = [
 
 [[package]]
 name = "wcpan-drive-core"
-version = "3.2.1"
+version = "4.0.0"
 description = "asynchronous generic cloud drive library"
 optional = false
-python-versions = ">=3.11,<4.0"
+python-versions = ">=3.12,<4.0"
 files = [
-    {file = "wcpan_drive_core-3.2.1-py3-none-any.whl", hash = "sha256:fdde18927e6b495ed7a95af09ea72ca810da518648839c0676ba0ce9d3bcd445"},
-    {file = "wcpan_drive_core-3.2.1.tar.gz", hash = "sha256:4982232342be56e20fa3af3e0a36997c457889154adb22e560b2941da7fb88f2"},
+    {file = "wcpan_drive_core-4.0.0-py3-none-any.whl", hash = "sha256:d9dd171de038426aef06745093c9955b8c991f55578d66b5d567afaf35e3ce02"},
+    {file = "wcpan_drive_core-4.0.0.tar.gz", hash = "sha256:fb7ce8590e3c923c3147c86518d1bd0b6faa08309a6169c8820c1720e0669fda"},
 ]
-
-[package.dependencies]
-arrow = ">=1.2.3,<2.0.0"
-PyYAML = ">=6.0,<7.0"
 
 [[package]]
 name = "yarl"
@@ -623,4 +619,4 @@ multidict = ">=4.0"
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.12"
-content-hash = "926e4c27aa2480bb00671626ecb544f97ad093ecdbb090eca843ee13c92de7e5"
+content-hash = "5cf11cc9762c8ba4a391ced47f774b1b6ee7131190eb55f840e79c829b58530e"
