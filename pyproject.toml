@@ -16,9 +16,7 @@ classifiers = [
 
 [tool.poetry.dependencies]
 python = "^3.12"
-PyYAML = "^6.0.1"
 aiohttp = "^3.6.0"
-arrow = "^1.2.3"
 wcpan-drive-core = "^4.0.0"
 
 [tool.poetry.group.dev.dependencies]
