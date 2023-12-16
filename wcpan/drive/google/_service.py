@@ -172,6 +172,12 @@ class GoogleDriveFileService(FileService):
         await empty_trash(self._network)
 
     @override
+    async def delete(self, node: Node) -> None:
+        from ._api.files import delete
+
+        await delete(self._network, node.id)
+
+    @override
     async def move(
         self,
         node: Node,

@@ -33,6 +33,14 @@ async def get(
     return rv
 
 
+# https://developers.google.com/drive/api/reference/rest/v3/files/delete
+async def delete(network: Network, file_id: str) -> None:
+    uri = f"{_API_ROOT}/{file_id}"
+    async with network.fetch("DELETE", uri):
+        # no body
+        pass
+
+
 async def list_(
     network: Network,
     *,
