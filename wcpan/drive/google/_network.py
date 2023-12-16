@@ -6,7 +6,7 @@ import asyncio
 import math
 import random
 
-from aiohttp import ClientSession, ClientResponse
+from aiohttp import ClientSession, ClientResponse, ContentTypeError
 from wcpan.drive.core.exceptions import UnauthorizedError
 
 from ._oauth import OAuth2Manager
@@ -146,8 +146,13 @@ class Network:
     async def _handle_4xx(self, response: ClientResponse):
         # 408 can be gateway timeout, which payload is not always JSON.
         if response.status != 408:
-            data = await response.json()
-            getLogger(__name__).error(f"{data}")
+            try:
+                data = await response.json()
+                getLogger(__name__).error(f"{data}")
+            except ContentTypeError as e:
+                getLogger(__name__).error(f"status: {response.status}, reason: {e}")
+                data = await response.text()
+                getLogger(__name__).error(f"{data}")
 
         response.raise_for_status()
 
