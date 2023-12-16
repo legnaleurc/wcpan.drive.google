@@ -6,6 +6,7 @@ from functools import partial
 from typing import override
 
 from aiohttp import ClientResponseError
+from wcpan.drive.core.exceptions import NodeNotFoundError
 from wcpan.drive.core.types import (
     MediaInfo,
     Node,
@@ -104,7 +105,7 @@ class GoogleEmptyWritableFile(WritableFile):
         return
 
     @override
-    async def node(self) -> Node | None:
+    async def node(self) -> Node:
         return self._node
 
 
@@ -201,9 +202,15 @@ class GooglePipeWritableFile(WritableFile):
         return offset
 
     @override
-    async def node(self) -> Node | None:
-        id_ = await self._consumer
-        node = await self._get_node(id_)
+    async def node(self) -> Node:
+        try:
+            id_ = await self._consumer
+        except Exception as e:
+            raise UploadError("upload failed") from e
+        try:
+            node = await self._get_node(id_)
+        except Exception as e:
+            raise NodeNotFoundError(id_) from e
         return node
 
 
