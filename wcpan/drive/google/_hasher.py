@@ -40,6 +40,6 @@ class Md5Hasher(Hasher):
         return self._hasher.digest()
 
     @override
-    async def copy(self) -> Hasher:
+    async def copy(self) -> Self:
         hasher = self._hasher.copy()
-        return Md5Hasher(hasher)
+        return self.__class__(hasher)
