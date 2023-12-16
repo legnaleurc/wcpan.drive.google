@@ -16,12 +16,7 @@ from wcpan.drive.core.types import (
     WritableFile,
 )
 
-from ._lib import (
-    CHANGE_FIELDS,
-    FILE_FIELDS,
-    node_from_api,
-    normalize_changes,
-)
+from ._lib import CHANGE_FIELDS, FILE_FIELDS, node_from_api, normalize_changes
 from ._oauth import OAuth2Manager, OAuth2Storage
 from ._readable import GoogleReadableFile
 from ._writable import create_writable

@@ -7,12 +7,7 @@ from typing import override
 
 from aiohttp import ClientResponseError
 from wcpan.drive.core.exceptions import NodeNotFoundError
-from wcpan.drive.core.types import (
-    MediaInfo,
-    Node,
-    PrivateDict,
-    WritableFile,
-)
+from wcpan.drive.core.types import MediaInfo, Node, PrivateDict, WritableFile
 
 from ._network import Network
 from ._lib import node_from_api
