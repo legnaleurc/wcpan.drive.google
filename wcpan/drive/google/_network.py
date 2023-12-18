@@ -96,7 +96,7 @@ class Network:
 
                 # 403 can be rate limit error.
                 if response.status == 403:
-                    await self._handle_403(response)
+                    await self._handle_403(response, kwargs["headers"])
                     # If the handler does not raise exception,
                     # it should be rate limit error.
                     # Increase backoff level and try again.
@@ -116,7 +116,7 @@ class Network:
         except Exception as e:
             raise UnauthorizedError() from e
 
-    async def _handle_403(self, response: ClientResponse):
+    async def _handle_403(self, response: ClientResponse, headers: dict[str, str]):
         # Not all 403 errors are rate limit error.
 
         data = await response.json()
@@ -137,6 +137,12 @@ class Network:
             raise DownloadAbusiveFileError(message)
         if reason == "invalidAbuseAcknowledgment":
             raise InvalidAbuseFlagError(message)
+        if reason == "forbidden":
+            # API key error but should not happen.
+            getLogger(__name__).debug("unexpected error")
+            getLogger(__name__).debug(f"given: {headers}")
+            auth = response.request_info.headers.getall("Authorization")
+            getLogger(__name__).debug(f"sent: {auth}")
 
         getLogger(__name__).error(f"{data}")
         response.raise_for_status()
