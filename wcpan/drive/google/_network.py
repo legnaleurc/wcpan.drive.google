@@ -52,12 +52,7 @@ class Network:
         body: ReadableContent | None = None,
         timeout: bool = True,
     ) -> AsyncIterator[ClientResponse]:
-        kwargs = await self._prepare_kwargs(method, url, query, headers, body)
-
-        # NOTE Upload or download can take long time.
-        # The actual timeout will be controled by the caller.
-        if not timeout:
-            kwargs["timeout"] = None
+        kwargs = self._prepare_kwargs(method, url, query, headers, body, timeout)
 
         async with self._retry_fetch(kwargs) as request:
             yield request
@@ -73,7 +68,11 @@ class Network:
         Other cases should just raise exceptions.
         """
         while True:
+            # Wait for backoff first if any.
             await self._backoff.wait()
+
+            # Ensure we have access token everytime.
+            await self._update_token_header(kwargs["headers"])
 
             async with self._session.request(**kwargs) as response:
                 # 1xx, 2xx, 3xx
@@ -92,7 +91,7 @@ class Network:
 
                 # 401 usually means access token expired.
                 if response.status == 401:
-                    await self._refresh_access_token(kwargs["headers"])
+                    await self._refresh_access_token()
                     continue
 
                 # 403 can be rate limit error.
@@ -109,14 +108,13 @@ class Network:
                 # Just in case the loop does not stop.
                 return
 
-    async def _refresh_access_token(self, headers: dict[str, str]):
+    async def _refresh_access_token(self):
         try:
             await self._oauth.renew_token(self._session)
         except UnauthorizedError:
             raise
         except Exception as e:
             raise UnauthorizedError() from e
-        await self._update_token_header(headers)
 
     async def _handle_403(self, response: ClientResponse):
         # Not all 403 errors are rate limit error.
@@ -156,33 +154,34 @@ class Network:
 
         response.raise_for_status()
 
-    async def _prepare_kwargs(
+    def _prepare_kwargs(
         self,
         method: str,
         url: str,
         query: QueryDict | None,
         headers: dict[str, str] | None,
         body: ReadableContent | None,
+        timeout: bool,
     ) -> dict[str, Any]:
         kwargs: dict[str, Any] = {
             "method": method,
             "url": url,
-            "headers": await self._prepare_headers(headers),
+            "headers": {} if headers is None else headers,
         }
+
         if query is not None:
             kwargs["params"] = list(_normalize_query_string(query))
+
         if body is not None:
             kwargs["data"] = body
-        return kwargs
 
-    async def _prepare_headers(
-        self,
-        headers: dict[str, str] | None,
-    ) -> dict[str, str]:
-        if headers is None:
-            headers = {}
-        await self._update_token_header(headers)
-        return headers
+        # NOTE Upload or download can take long time.
+        # The actual timeout will be controled by the caller.
+        # For normal API we use the default value in aiohttp.
+        if not timeout:
+            kwargs["timeout"] = None
+
+        return kwargs
 
     async def _update_token_header(self, headers: dict[str, str]) -> None:
         token = await self._oauth.safe_get_access_token()
