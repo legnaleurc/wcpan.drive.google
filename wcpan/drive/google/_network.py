@@ -1,12 +1,20 @@
 from collections.abc import Iterable, AsyncIterable, AsyncIterator
 from contextlib import asynccontextmanager
+from functools import partial
 from logging import getLogger
+from types import SimpleNamespace
 from typing import Any
 import asyncio
 import math
 import random
 
-from aiohttp import ClientSession, ClientResponse, ContentTypeError
+from aiohttp import (
+    ClientSession,
+    ClientResponse,
+    ContentTypeError,
+    TraceConfig,
+    TraceRequestRedirectParams,
+)
 from wcpan.drive.core.exceptions import UnauthorizedError
 
 from ._oauth import OAuth2Manager
@@ -22,7 +30,11 @@ type ReadableContent = bytes | AsyncIterable[bytes]
 
 @asynccontextmanager
 async def create_network(oauth: OAuth2Manager):
-    async with ClientSession() as session:
+    redirection_tracer = TraceConfig()
+    trace_redirect = partial(_trace_redirect, oauth=oauth)
+    redirection_tracer.on_request_redirect.append(trace_redirect)
+
+    async with ClientSession(trace_configs=[redirection_tracer]) as session:
         yield Network(session, oauth)
 
 
@@ -209,6 +221,30 @@ class BackoffController:
 
     def decrease(self) -> None:
         self._level = max(self._level - 1, 0)
+
+
+async def _trace_redirect(
+    session: ClientSession,
+    trace_config_ctx: SimpleNamespace,
+    params: TraceRequestRedirectParams,
+    *,
+    oauth: OAuth2Manager,
+) -> None:
+    getLogger(__name__).debug("redirection happened")
+    if params.url.host != "www.googleapis.com":
+        getLogger(__name__).debug(f"redirected to `{params.url}`, skip")
+        return
+    token = await oauth.safe_get_access_token()
+    if not token:
+        getLogger(__name__).debug("no access token")
+        return
+    getLogger(__name__).debug("update Authorization header")
+    params.headers.update(
+        {
+            "Authorization": f"Bearer {token}",
+        }
+    )
+    getLogger(__name__).debug("done")
 
 
 def _normalize_query_string(
