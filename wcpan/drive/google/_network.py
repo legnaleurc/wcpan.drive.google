@@ -23,6 +23,7 @@ from .exceptions import DownloadAbusiveFileError, InvalidAbuseFlagError
 
 _BACKOFF_FACTOR = 2
 _BACKOFF_MAX_TIMEOUT = 60
+_API_HOST = "www.googleapis.com"
 
 type QueryDict = dict[str, int | bool | str]
 type ReadableContent = bytes | AsyncIterable[bytes]
@@ -36,6 +37,38 @@ async def create_network(oauth: OAuth2Manager):
 
     async with ClientSession(trace_configs=[redirection_tracer]) as session:
         yield Network(session, oauth)
+
+
+# When sending massive requests, it's possible that Google redirects you to
+# https://www.google.com/sorry/index first, and redirects you back to API.
+# Since the host is different from API host (www.googleapis.com),
+# the `Authorization` header will be removed by aiohttp for security reason.
+# This function spies redirects and add `Authorization` back.
+async def _trace_redirect(
+    session: ClientSession,
+    trace_config_ctx: SimpleNamespace,
+    params: TraceRequestRedirectParams,
+    *,
+    oauth: OAuth2Manager,
+) -> None:
+    getLogger(__name__).debug("redirect detected")
+
+    host_name = params.url.host
+    if host_name != _API_HOST:
+        getLogger(__name__).debug(f"skip `{host_name}`")
+        return
+
+    token = await oauth.safe_get_access_token()
+    if not token:
+        getLogger(__name__).error("no access token found for redirect")
+        return
+
+    params.headers.update(
+        {
+            "Authorization": f"Bearer {token}",
+        }
+    )
+    getLogger(__name__).debug("update Authorization header")
 
 
 class Network:
@@ -221,30 +254,6 @@ class BackoffController:
 
     def decrease(self) -> None:
         self._level = max(self._level - 1, 0)
-
-
-async def _trace_redirect(
-    session: ClientSession,
-    trace_config_ctx: SimpleNamespace,
-    params: TraceRequestRedirectParams,
-    *,
-    oauth: OAuth2Manager,
-) -> None:
-    getLogger(__name__).debug("redirection happened")
-    if params.url.host != "www.googleapis.com":
-        getLogger(__name__).debug(f"redirected to `{params.url}`, skip")
-        return
-    token = await oauth.safe_get_access_token()
-    if not token:
-        getLogger(__name__).debug("no access token")
-        return
-    getLogger(__name__).debug("update Authorization header")
-    params.headers.update(
-        {
-            "Authorization": f"Bearer {token}",
-        }
-    )
-    getLogger(__name__).debug("done")
 
 
 def _normalize_query_string(
