@@ -132,7 +132,8 @@ class Network:
                 if response.status >= 500:
                     # The server is unstable, increase backoff level.
                     self._backoff.increase()
-                    response.raise_for_status()
+                    # Retry again.
+                    continue
 
                 # 401 usually means access token expired.
                 if response.status == 401:
