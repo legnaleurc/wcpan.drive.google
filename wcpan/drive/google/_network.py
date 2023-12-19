@@ -25,6 +25,7 @@ _BACKOFF_FACTOR = 2
 _BACKOFF_MAX_TIMEOUT = 60
 _API_HOST = "www.googleapis.com"
 
+
 type QueryDict = dict[str, int | bool | str]
 type ReadableContent = bytes | AsyncIterable[bytes]
 
@@ -97,7 +98,14 @@ class Network:
         body: ReadableContent | None = None,
         timeout: bool = True,
     ) -> AsyncIterator[ClientResponse]:
-        kwargs = self._prepare_kwargs(method, url, query, headers, body, timeout)
+        kwargs = _prepare_kwargs(
+            method=method,
+            url=url,
+            query=query,
+            headers=headers,
+            body=body,
+            timeout=timeout,
+        )
 
         async with self._retry_fetch(kwargs) as request:
             yield request
@@ -130,6 +138,7 @@ class Network:
 
                 # 5xx server error, nothing we can do.
                 if response.status >= 500:
+                    await _handle_5xx(response)
                     # The server is unstable, increase backoff level.
                     self._backoff.increase()
                     # Retry again.
@@ -142,7 +151,7 @@ class Network:
 
                 # 403 can be rate limit error.
                 if response.status == 403:
-                    await self._handle_403(response)
+                    await _handle_403(response)
                     # If the handler does not raise exception,
                     # it should be rate limit error.
                     # Increase backoff level and try again.
@@ -150,7 +159,7 @@ class Network:
                     continue
 
                 # Other 4xx errors are general HTTP errors.
-                await self._handle_4xx(response)
+                await _handle_4xx(response)
                 # Just in case the loop does not stop.
                 return
 
@@ -161,73 +170,6 @@ class Network:
             raise
         except Exception as e:
             raise UnauthorizedError() from e
-
-    async def _handle_403(self, response: ClientResponse):
-        # Not all 403 errors are rate limit error.
-
-        data = await response.json()
-        if not data:
-            # Undocumented behavior, probably a server problem.
-            getLogger(__name__).error("403 with empty error message")
-            response.raise_for_status()
-
-        # FIXME: May have multiple errors.
-        firstError = data["error"]["errors"][0]
-        domain = firstError["domain"]
-        reason = firstError["reason"]
-        message = firstError["message"]
-        if domain == "usageLimits":
-            getLogger(__name__).warning("hit api rate limit")
-            return
-        if reason == "cannotDownloadAbusiveFile":
-            raise DownloadAbusiveFileError(message)
-        if reason == "invalidAbuseAcknowledgment":
-            raise InvalidAbuseFlagError(message)
-
-        getLogger(__name__).error(f"{data}")
-        response.raise_for_status()
-
-    async def _handle_4xx(self, response: ClientResponse):
-        # 408 can be gateway timeout, which payload is not always JSON.
-        if response.status != 408:
-            try:
-                data = await response.json()
-                getLogger(__name__).error(f"{data}")
-            except ContentTypeError as e:
-                getLogger(__name__).error(f"status: {response.status}, reason: {e}")
-                data = await response.text()
-                getLogger(__name__).error(f"{data}")
-
-        response.raise_for_status()
-
-    def _prepare_kwargs(
-        self,
-        method: str,
-        url: str,
-        query: QueryDict | None,
-        headers: dict[str, str] | None,
-        body: ReadableContent | None,
-        timeout: bool,
-    ) -> dict[str, Any]:
-        kwargs: dict[str, Any] = {
-            "method": method,
-            "url": url,
-            "headers": {} if headers is None else headers,
-        }
-
-        if query is not None:
-            kwargs["params"] = list(_normalize_query_string(query))
-
-        if body is not None:
-            kwargs["data"] = body
-
-        # NOTE Upload or download can take long time.
-        # The actual timeout will be controled by the caller.
-        # For normal API we use the default value in aiohttp.
-        if not timeout:
-            kwargs["timeout"] = None
-
-        return kwargs
 
     async def _update_token_header(self, headers: dict[str, str]) -> None:
         token = await self._oauth.safe_get_access_token()
@@ -257,12 +199,88 @@ class BackoffController:
         self._level = max(self._level - 1, 0)
 
 
-def _normalize_query_string(
-    qs: QueryDict,
-) -> Iterable[tuple[str, str]]:
+def _prepare_kwargs(
+    *,
+    method: str,
+    url: str,
+    query: QueryDict | None,
+    headers: dict[str, str] | None,
+    body: ReadableContent | None,
+    timeout: bool,
+) -> dict[str, Any]:
+    kwargs: dict[str, Any] = {
+        "method": method,
+        "url": url,
+        "headers": {} if headers is None else headers,
+    }
+
+    if query is not None:
+        kwargs["params"] = list(_normalize_query_string(query))
+
+    if body is not None:
+        kwargs["data"] = body
+
+    # NOTE Upload or download can take long time.
+    # The actual timeout will be controled by the caller.
+    # For normal API we use the default value in aiohttp.
+    if not timeout:
+        kwargs["timeout"] = None
+
+    return kwargs
+
+
+def _normalize_query_string(qs: QueryDict, /) -> Iterable[tuple[str, str]]:
     for key, value in qs.items():
         if isinstance(value, bool):
             value = "true" if value else "false"
         elif isinstance(value, int):
             value = str(value)
         yield key, value
+
+
+async def _handle_403(response: ClientResponse, /):
+    # Not all 403 errors are rate limit error.
+
+    data = await response.json()
+    if not data:
+        # Undocumented behavior, probably a server problem.
+        getLogger(__name__).error("403 with empty error message")
+        response.raise_for_status()
+
+    # FIXME: May have multiple errors.
+    firstError = data["error"]["errors"][0]
+    domain = firstError["domain"]
+    reason = firstError["reason"]
+    message = firstError["message"]
+    if domain == "usageLimits":
+        getLogger(__name__).warning("hit api rate limit")
+        return
+    if reason == "cannotDownloadAbusiveFile":
+        raise DownloadAbusiveFileError(message)
+    if reason == "invalidAbuseAcknowledgment":
+        raise InvalidAbuseFlagError(message)
+
+    getLogger(__name__).error(f"{data}")
+    response.raise_for_status()
+
+
+async def _handle_4xx(response: ClientResponse, /):
+    # 408 can be gateway timeout, which payload is not always JSON.
+    if response.status != 408:
+        await _report_error(response)
+
+    response.raise_for_status()
+
+
+async def _handle_5xx(response: ClientResponse, /):
+    await _report_error(response)
+
+
+async def _report_error(response: ClientResponse, /) -> None:
+    try:
+        data = await response.json()
+        getLogger(__name__).error(f"{data}")
+    except ContentTypeError as e:
+        getLogger(__name__).error(f"status: {response.status}, reason: {e}")
+        data = await response.text()
+        getLogger(__name__).error(f"{data}")
