@@ -265,6 +265,7 @@ async def _handle_403(response: ClientResponse, /):
 
 
 async def _handle_4xx(response: ClientResponse, /):
+    getLogger(__name__).error(f"got {response.status}")
     # 408 can be gateway timeout, which payload is not always JSON.
     if response.status != 408:
         await _report_error(response)
@@ -273,6 +274,7 @@ async def _handle_4xx(response: ClientResponse, /):
 
 
 async def _handle_5xx(response: ClientResponse, /):
+    getLogger(__name__).error(f"got {response.status}")
     await _report_error(response)
 
 
