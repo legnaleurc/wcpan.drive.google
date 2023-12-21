@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from functools import partial
 from logging import getLogger
 from types import SimpleNamespace
-from typing import Any, TypedDict
+from typing import TypedDict, NotRequired
 import asyncio
 import math
 import random
@@ -44,6 +44,15 @@ class _ErrorData(TypedDict):
 
 type QueryDict = dict[str, int | bool | str]
 type ReadableContent = bytes | AsyncIterable[bytes]
+
+
+class _FetchParams(TypedDict):
+    url: str
+    method: str
+    headers: dict[str, str]
+    params: NotRequired[list[tuple[str, str]]]
+    data: NotRequired[ReadableContent]
+    timeout: NotRequired[None]
 
 
 @asynccontextmanager
@@ -127,9 +136,7 @@ class Network:
             yield request
 
     @asynccontextmanager
-    async def _retry_fetch(
-        self, kwargs: dict[str, Any]
-    ) -> AsyncIterator[ClientResponse]:
+    async def _retry_fetch(self, kwargs: _FetchParams) -> AsyncIterator[ClientResponse]:
         """
         Send request and retries when following happens:
         1. Need to refresh access token.
@@ -223,8 +230,8 @@ def _prepare_kwargs(
     headers: dict[str, str] | None,
     body: ReadableContent | None,
     timeout: bool,
-) -> dict[str, Any]:
-    kwargs: dict[str, Any] = {
+) -> _FetchParams:
+    kwargs: _FetchParams = {
         "method": method,
         "url": url,
         "headers": {} if headers is None else headers,
