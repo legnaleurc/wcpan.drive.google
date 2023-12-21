@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from functools import partial
 from logging import getLogger
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, TypedDict
 import asyncio
 import math
 import random
@@ -24,6 +24,22 @@ from .exceptions import DownloadAbusiveFileError, InvalidAbuseFlagError
 _BACKOFF_FACTOR = 2
 _BACKOFF_MAX_TIMEOUT = 60
 _API_HOST = "www.googleapis.com"
+
+
+class _ErrorReasonData(TypedDict):
+    domain: str
+    reason: str
+    message: str
+
+
+class _ErrorSummaryData(TypedDict):
+    code: int
+    message: str
+    errors: list[_ErrorReasonData]
+
+
+class _ErrorData(TypedDict):
+    error: _ErrorSummaryData
 
 
 type QueryDict = dict[str, int | bool | str]
@@ -241,7 +257,7 @@ def _normalize_query_string(qs: QueryDict, /) -> Iterable[tuple[str, str]]:
 async def _handle_403(response: ClientResponse, /):
     # Not all 403 errors are rate limit error.
 
-    data = await response.json()
+    data: _ErrorData = await response.json()
     if not data:
         # Undocumented behavior, probably a server problem.
         getLogger(__name__).error("403 with empty error message")
