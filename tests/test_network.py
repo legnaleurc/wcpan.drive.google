@@ -64,9 +64,12 @@ class NetworkTestCase(AioHTTPTestCase):
 
     async def test503(self):
         url = str(self.server.make_url("/api/v1/503"))
-        with self.assertRaises(ClientResponseError):
-            async with self._network.fetch("GET", url):
-                pass
+        async with self._network.fetch("GET", url) as response:
+            rv = await response.json()
+            self.assertEqual(rv, 42)
+            aexpect(self._backoff.wait).assert_awaited()
+            aexpect(self._backoff.increase).assert_called_once()
+            aexpect(self._backoff.decrease).assert_called_once()
 
     async def testRefreshToken(self):
         aexpect(self._oauth.safe_get_access_token).side_effect = [
@@ -169,7 +172,11 @@ async def _on_408(request: Request) -> Response:
 
 
 async def _on_503(request: Request) -> Response:
-    raise HTTPServiceUnavailable
+    quota = request.app[_KEY_QUOTA]
+    if quota:
+        quota.pop()
+        raise HTTPServiceUnavailable
+    return json_response(42)
 
 
 async def _on_token(request: Request) -> Response:
