@@ -129,9 +129,9 @@ async def initiate_uploading(
     if media_info and media_info.is_image:
         props["image"] = f"{media_info.width} {media_info.height}"
     if media_info and media_info.is_video:
-        props[
-            "video"
-        ] = f"{media_info.width} {media_info.height} {media_info.ms_duration}"
+        props["video"] = (
+            f"{media_info.width} {media_info.height} {media_info.ms_duration}"
+        )
     if props:
         metadata["appProperties"] = props
 
@@ -323,9 +323,9 @@ async def update(
     if media_info and media_info.is_image:
         props["image"] = f"{media_info.width} {media_info.height}"
     if media_info and media_info.is_video:
-        props[
-            "video"
-        ] = f"{media_info.width} {media_info.height} {media_info.ms_duration}"
+        props["video"] = (
+            f"{media_info.width} {media_info.height} {media_info.ms_duration}"
+        )
     if props:
         metadata["appProperties"] = props
 
