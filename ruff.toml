@@ -1,0 +1,5 @@
+[lint]
+select = ["I"]
+
+[lint.isort]
+lines-after-imports = 2

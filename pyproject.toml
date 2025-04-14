@@ -26,7 +26,7 @@ aiohttp = "^3.6.0"
 wcpan-drive-core = "^4.1.0"
 
 [tool.poetry.group.dev.dependencies]
-black = ">=23.11,<25.0"
+ruff = "^0.11.5"
 
 [build-system]
 requires = ["poetry-core"]
