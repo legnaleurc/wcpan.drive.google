@@ -5,10 +5,11 @@ from logging import getLogger
 from typing import Any, override
 
 from aiohttp import ClientResponse
-from wcpan.drive.core.types import ReadableFile, Node
 
-from .exceptions import DownloadAbusiveFileError
+from wcpan.drive.core.types import Node, ReadableFile
+
 from ._network import Network
+from .exceptions import DownloadAbusiveFileError
 
 
 class GoogleReadableFile(ReadableFile):

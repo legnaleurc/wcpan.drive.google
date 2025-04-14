@@ -1,20 +1,21 @@
-from collections.abc import Iterable, AsyncIterable, AsyncIterator
+import asyncio
+import math
+import random
+from collections.abc import AsyncIterable, AsyncIterator, Iterable
 from contextlib import asynccontextmanager
 from functools import partial
 from logging import getLogger
 from types import SimpleNamespace
-from typing import TypedDict, NotRequired
-import asyncio
-import math
-import random
+from typing import NotRequired, TypedDict
 
 from aiohttp import (
-    ClientSession,
     ClientResponse,
+    ClientSession,
     ContentTypeError,
     TraceConfig,
     TraceRequestRedirectParams,
 )
+
 from wcpan.drive.core.exceptions import UnauthorizedError
 
 from ._oauth import OAuth2Manager

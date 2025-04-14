@@ -1,8 +1,8 @@
 from collections.abc import Iterable
-from datetime import datetime, UTC
-from typing import TypedDict, NotRequired, Literal
+from datetime import UTC, datetime
+from typing import Literal, NotRequired, TypedDict
 
-from wcpan.drive.core.types import Node, ChangeAction
+from wcpan.drive.core.types import ChangeAction, Node
 
 
 FOLDER_MIME_TYPE = "application/vnd.google-apps.folder"

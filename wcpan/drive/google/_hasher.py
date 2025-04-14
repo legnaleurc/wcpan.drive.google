@@ -1,6 +1,6 @@
-from collections.abc import Buffer
-from typing import override, Protocol, Self
 import hashlib
+from collections.abc import Buffer
+from typing import Protocol, Self, override
 
 from wcpan.drive.core.types import Hasher
 

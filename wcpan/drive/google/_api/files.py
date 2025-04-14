@@ -1,14 +1,15 @@
-from typing import Any
-from collections.abc import AsyncIterable, AsyncIterator
-from contextlib import asynccontextmanager
 import json
 import re
+from collections.abc import AsyncIterable, AsyncIterator
+from contextlib import asynccontextmanager
+from typing import Any
 
 from aiohttp import ClientResponse
+
 from wcpan.drive.core.types import MediaInfo
 
+from .._lib import FILE_FIELDS, FOLDER_MIME_TYPE, GoogleFileDict, utc_now
 from .._network import Network, QueryDict
-from .._lib import FOLDER_MIME_TYPE, GoogleFileDict, FILE_FIELDS, utc_now
 from ..exceptions import UploadError
 
 

@@ -1,16 +1,17 @@
 import asyncio
-from asyncio import Queue, TaskGroup, CancelledError
-from collections.abc import AsyncIterator, Callable, Awaitable, Coroutine
+from asyncio import CancelledError, Queue, TaskGroup
+from collections.abc import AsyncIterator, Awaitable, Callable, Coroutine
 from contextlib import asynccontextmanager
 from functools import partial
 from typing import override
 
 from aiohttp import ClientResponseError
+
 from wcpan.drive.core.exceptions import NodeNotFoundError
 from wcpan.drive.core.types import MediaInfo, Node, PrivateDict, WritableFile
 
-from ._network import Network
 from ._lib import node_from_api
+from ._network import Network
 from .exceptions import UploadError
 from .lib import fetch_node_by_id
 

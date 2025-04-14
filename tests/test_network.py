@@ -1,5 +1,5 @@
-from unittest.mock import AsyncMock, patch
 from typing import cast
+from unittest.mock import AsyncMock, patch
 
 from aiohttp import ClientResponseError
 from aiohttp.test_utils import AioHTTPTestCase
@@ -9,22 +9,22 @@ from aiohttp.web import (
     HTTPRequestTimeout,
     HTTPServiceUnavailable,
     HTTPUnauthorized,
-    json_response,
     Request,
     Response,
+    json_response,
 )
 
+from wcpan.drive.google._network import BackoffController, QueryDict, create_network
+from wcpan.drive.google._oauth import OAuth2Manager
 from wcpan.drive.google.exceptions import (
     DownloadAbusiveFileError,
     InvalidAbuseFlagError,
 )
-from wcpan.drive.google._network import create_network, BackoffController, QueryDict
-from wcpan.drive.google._oauth import OAuth2Manager
 
 
 class NetworkTestCase(AioHTTPTestCase):
     async def asyncSetUp(self) -> None:
-        from logging import disable, CRITICAL
+        from logging import CRITICAL, disable
 
         await super().asyncSetUp()
 
@@ -39,7 +39,7 @@ class NetworkTestCase(AioHTTPTestCase):
             self._network = await self.enterAsyncContext(create_network(self._oauth))
 
     async def asyncTearDown(self) -> None:
-        from logging import disable, NOTSET
+        from logging import NOTSET, disable
 
         await super().asyncTearDown()
 

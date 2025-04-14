@@ -1,15 +1,15 @@
+import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any, cast
-from unittest import TestCase, IsolatedAsyncioTestCase
+from unittest import IsolatedAsyncioTestCase, TestCase
 from unittest.mock import MagicMock
-import json
 
 from aiohttp.test_utils import AioHTTPTestCase
-from aiohttp.web import Application, Request, Response, HTTPBadRequest, json_response
+from aiohttp.web import Application, HTTPBadRequest, Request, Response, json_response
 
+from wcpan.drive.google._oauth import OAuth2Manager, OAuth2Storage
 from wcpan.drive.google.exceptions import CredentialFileError, TokenFileError
-from wcpan.drive.google._oauth import OAuth2Storage, OAuth2Manager
 
 
 class OAuth2StorageTestCase(TestCase):
