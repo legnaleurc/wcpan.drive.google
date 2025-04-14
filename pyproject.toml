@@ -1,10 +1,16 @@
-[tool.poetry]
+[project]
 name = "wcpan-drive-google"
 version = "9.1.7"
 description = "Google Drive driver for wcpan.drive"
-authors = ["Wei-Cheng Pan <legnaleurc@gmail.com>"]
-license = "MIT"
 readme = "README.md"
+license = "MIT"
+authors = [
+    {name = "Wei-Cheng Pan", email = "legnaleurc@gmail.com"}
+]
+dynamic = ["classifiers", "dependencies", "requires-python"]
+
+[tool.poetry]
+requires-poetry = "^2.1"
 packages = [{include = "wcpan"}]
 classifiers = [
     "Development Status :: 3 - Alpha",

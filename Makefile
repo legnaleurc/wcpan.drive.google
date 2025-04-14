@@ -40,5 +40,5 @@ $(ENV_LOCK): $(PKG_LOCK)
 	touch $@
 
 $(PKG_LOCK): $(PKG_FILES)
-	poetry lock --no-update
+	poetry lock
 	touch $@
