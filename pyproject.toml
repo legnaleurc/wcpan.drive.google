@@ -3,15 +3,11 @@ name = "wcpan-drive-google"
 version = "9.1.7"
 description = "Google Drive driver for wcpan.drive"
 readme = "README.md"
-license = "MIT"
+license = {text = "MIT"}
 authors = [
     {name = "Wei-Cheng Pan", email = "legnaleurc@gmail.com"}
 ]
-dynamic = ["classifiers", "dependencies", "requires-python"]
-
-[tool.poetry]
-requires-poetry = "^2.1"
-packages = [{include = "wcpan"}]
+requires-python = ">=3.12,<4.0"
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
@@ -19,15 +15,19 @@ classifiers = [
     "Topic :: Software Development :: Libraries",
     "Typing :: Typed",
 ]
+dependencies = [
+    "aiohttp>=3.13.3,<4.0.0",
+    "wcpan-drive-core>=4.1.0,<5.0.0",
+]
 
-[tool.poetry.dependencies]
-python = "^3.12"
-aiohttp = "^3.13.3"
-wcpan-drive-core = "^4.1.0"
-
-[tool.poetry.group.dev.dependencies]
-ruff = "^0.11.5"
+[dependency-groups]
+dev = [
+    "ruff>=0.11.5,<1.0.0",
+]
 
 [build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["wcpan"]

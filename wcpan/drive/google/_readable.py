@@ -5,7 +5,6 @@ from logging import getLogger
 from typing import Any, override
 
 from aiohttp import ClientResponse
-
 from wcpan.drive.core.types import Node, ReadableFile
 
 from ._network import Network

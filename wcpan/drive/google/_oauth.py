@@ -7,7 +7,6 @@ from typing import TypedDict
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 from aiohttp import ClientSession
-
 from wcpan.drive.core.exceptions import UnauthorizedError
 
 from .exceptions import AuthenticationError, CredentialFileError, TokenFileError

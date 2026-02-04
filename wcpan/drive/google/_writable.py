@@ -6,7 +6,6 @@ from functools import partial
 from typing import override
 
 from aiohttp import ClientResponseError
-
 from wcpan.drive.core.exceptions import NodeNotFoundError
 from wcpan.drive.core.types import MediaInfo, Node, PrivateDict, WritableFile
 

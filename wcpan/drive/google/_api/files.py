@@ -5,7 +5,6 @@ from contextlib import asynccontextmanager
 from typing import Any
 
 from aiohttp import ClientResponse
-
 from wcpan.drive.core.types import MediaInfo
 
 from .._lib import FILE_FIELDS, FOLDER_MIME_TYPE, GoogleFileDict, utc_now

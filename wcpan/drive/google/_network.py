@@ -15,7 +15,6 @@ from aiohttp import (
     TraceConfig,
     TraceRequestRedirectParams,
 )
-
 from wcpan.drive.core.exceptions import UnauthorizedError
 
 from ._oauth import OAuth2Manager
