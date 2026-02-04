@@ -15,7 +15,7 @@ from aiohttp import (
     TraceConfig,
     TraceRequestRedirectParams,
 )
-from wcpan.drive.core.exceptions import UnauthorizedError
+from wcpan.drive.core.exceptions import AuthenticationError
 
 from ._oauth import OAuth2Manager
 from .exceptions import DownloadAbusiveFileError, InvalidAbuseFlagError
@@ -189,15 +189,15 @@ class Network:
     async def _refresh_access_token(self):
         try:
             await self._oauth.renew_token(self._session)
-        except UnauthorizedError:
+        except AuthenticationError:
             raise
         except Exception as e:
-            raise UnauthorizedError() from e
+            raise AuthenticationError() from e
 
     async def _update_token_header(self, headers: dict[str, str]) -> None:
         token = await self._oauth.safe_get_access_token()
         if not token:
-            raise UnauthorizedError()
+            raise AuthenticationError()
         headers["Authorization"] = f"Bearer {token}"
 
 

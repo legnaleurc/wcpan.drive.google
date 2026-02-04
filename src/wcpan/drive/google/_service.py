@@ -43,7 +43,7 @@ class GoogleDriveFileService(FileService):
     @property
     @override
     def api_version(self) -> int:
-        return 4
+        return 5
 
     @override
     async def get_initial_cursor(self) -> str:
@@ -220,16 +220,27 @@ class GoogleDriveFileService(FileService):
         return create_hasher
 
     @override
-    async def is_authorized(self) -> bool:
+    async def is_authenticated(self) -> bool:
         return bool(self._oauth.access_token)
 
     @override
-    async def get_oauth_url(self) -> str:
-        return self._oauth.build_authorization_url()
+    async def authenticate(self) -> None:
+        """
+        Interactive OAuth 2.0 authentication flow.
 
-    @override
-    async def set_oauth_token(self, token: str) -> None:
-        await self._network.accept_oauth_code(token)
+        Prompts user to visit authorization URL and paste the redirected URL or code.
+        """
+        import sys
+
+        url = self._oauth.build_authorization_url()
+        sys.stdout.write("Access the following URL to authorize user:\n")
+        sys.stdout.write(f"{url}\n")
+        sys.stdout.write("\n")
+        sys.stdout.write("Paste the redirected URL or provided code here: ")
+        sys.stdout.flush()
+
+        answer = input()
+        await self._network.accept_oauth_code(answer)
 
     @property
     def network(self) -> Network:
