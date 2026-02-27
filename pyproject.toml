@@ -1,6 +1,6 @@
 [project]
 name = "wcpan-drive-google"
-version = "9.1.8"
+version = "10.0.0"
 description = "Google Drive driver for wcpan.drive"
 readme = "README.md"
 license = {text = "MIT"}
