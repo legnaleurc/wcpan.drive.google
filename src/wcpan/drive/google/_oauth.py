@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import TypedDict
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
-from aiohttp import ClientSession
+from aiohttp import ClientResponseError, ClientSession
 from wcpan.drive.core.exceptions import UnauthorizedError
 
 from .exceptions import AuthenticationError, CredentialFileError, TokenFileError
@@ -179,9 +179,14 @@ class OAuth2Manager(object):
         async with self._guard():
             try:
                 await self._refresh(session)
-            except Exception:
+            except ClientResponseError as e:
+                # HTTP error from token endpoint = permanent auth failure
                 getLogger(__name__).exception("error on refresh token")
                 self._error = True
+                raise UnauthorizedError() from e
+            except Exception:
+                # Network/transient error — don't permanently block future attempts
+                getLogger(__name__).exception("error on refresh token, will retry later")
                 raise
             self._error = False
 
