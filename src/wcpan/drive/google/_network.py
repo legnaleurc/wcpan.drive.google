@@ -21,6 +21,8 @@ from ._oauth import OAuth2Manager
 from .exceptions import DownloadAbusiveFileError, InvalidAbuseFlagError
 
 
+_L = getLogger(__name__)
+
 _BACKOFF_FACTOR = 2
 _BACKOFF_MAX_TIMEOUT = 60
 _API_HOST = "www.googleapis.com"
@@ -77,16 +79,16 @@ async def _trace_redirect(
     *,
     oauth: OAuth2Manager,
 ) -> None:
-    getLogger(__name__).debug("redirect detected")
+    _L.debug("redirect detected")
 
     host_name = params.url.host
     if host_name != _API_HOST:
-        getLogger(__name__).debug(f"skip `{host_name}`")
+        _L.debug(f"skip `{host_name}`")
         return
 
     token = await oauth.safe_get_access_token()
     if not token:
-        getLogger(__name__).error("no access token found for redirect")
+        _L.error("no access token found for redirect")
         return
 
     params.headers.update(
@@ -94,7 +96,7 @@ async def _trace_redirect(
             "Authorization": f"Bearer {token}",
         }
     )
-    getLogger(__name__).debug("update Authorization header")
+    _L.debug("update Authorization header")
 
 
 class Network:
@@ -212,7 +214,7 @@ class BackoffController:
         power = 2**self._level
         s_delay = math.floor(seed * power * _BACKOFF_FACTOR)
         s_delay = min(_BACKOFF_MAX_TIMEOUT, s_delay)
-        getLogger(__name__).debug(f"backoff for {s_delay} seconds")
+        _L.debug(f"backoff for {s_delay} seconds")
         await asyncio.sleep(s_delay)
 
     def increase(self) -> None:
@@ -267,7 +269,7 @@ async def _handle_403(response: ClientResponse, /):
     data: _ErrorData = await response.json()
     if not data:
         # Undocumented behavior, probably a server problem.
-        getLogger(__name__).error("403 with empty error message")
+        _L.error("403 with empty error message")
         response.raise_for_status()
 
     # FIXME: May have multiple errors.
@@ -276,19 +278,19 @@ async def _handle_403(response: ClientResponse, /):
     reason = firstError["reason"]
     message = firstError["message"]
     if domain == "usageLimits":
-        getLogger(__name__).warning("hit api rate limit")
+        _L.warning("hit api rate limit")
         return
     if reason == "cannotDownloadAbusiveFile":
         raise DownloadAbusiveFileError(message)
     if reason == "invalidAbuseAcknowledgment":
         raise InvalidAbuseFlagError(message)
 
-    getLogger(__name__).error(f"{data}")
+    _L.error(f"{data}")
     response.raise_for_status()
 
 
 async def _handle_4xx(response: ClientResponse, /):
-    getLogger(__name__).error(f"got {response.status}")
+    _L.error(f"got {response.status}")
     # 408 can be gateway timeout, which payload is not always JSON.
     if response.status != 408:
         await _report_error(response)
@@ -297,15 +299,15 @@ async def _handle_4xx(response: ClientResponse, /):
 
 
 async def _handle_5xx(response: ClientResponse, /):
-    getLogger(__name__).error(f"got {response.status}")
+    _L.error(f"got {response.status}")
     await _report_error(response)
 
 
 async def _report_error(response: ClientResponse, /) -> None:
     try:
         data = await response.json()
-        getLogger(__name__).error(f"{data}")
+        _L.error(f"{data}")
     except ContentTypeError as e:
-        getLogger(__name__).error(f"status: {response.status}, reason: {e}")
+        _L.error(f"status: {response.status}, reason: {e}")
         data = await response.text()
-        getLogger(__name__).error(f"{data}")
+        _L.error(f"{data}")

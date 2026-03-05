@@ -25,6 +25,9 @@ from ._writable import create_writable
 from .lib import fetch_child_by_name, fetch_node_by_id
 
 
+_L = getLogger(__name__)
+
+
 @asynccontextmanager
 async def create_service(*, client_secret: str, oauth_token: str):
     storage = OAuth2Storage(
@@ -113,7 +116,7 @@ class GoogleDriveFileService(FileService):
         )
         if node:
             if exist_ok:
-                getLogger(__name__).info(f"skipped (existing) {name}")
+                _L.info(f"skipped (existing) {name}")
                 return node
             else:
                 raise NodeExistsError(node)

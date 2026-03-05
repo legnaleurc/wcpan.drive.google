@@ -12,6 +12,8 @@ from wcpan.drive.core.exceptions import UnauthorizedError
 from .exceptions import AuthenticationError, CredentialFileError, TokenFileError
 
 
+_L = getLogger(__name__)
+
 OAUTH_TOKEN_VERSION = 1
 _OAUTH_SCOPES = [
     "https://www.googleapis.com/auth/drive",
@@ -181,16 +183,16 @@ class OAuth2Manager(object):
                 await self._refresh(session)
             except ClientResponseError as e:
                 # HTTP error from token endpoint = permanent auth failure
-                getLogger(__name__).exception("error on refresh token")
+                _L.exception("error on refresh token")
                 self._error = True
                 raise UnauthorizedError() from e
             except Exception:
                 # Network/transient error — don't permanently block future attempts
-                getLogger(__name__).exception("error on refresh token, will retry later")
+                _L.exception("error on refresh token, will retry later")
                 raise
             self._error = False
 
-        getLogger(__name__).debug("refresh access token")
+        _L.debug("refresh access token")
 
     @asynccontextmanager
     async def _guard(self):

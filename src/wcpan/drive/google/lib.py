@@ -9,6 +9,9 @@ from ._lib import FILE_FIELDS, LIST_FIELDS, GoogleFileDict, node_from_api
 from ._network import Network
 
 
+_L = getLogger(__name__)
+
+
 async def fetch_child_by_name(
     network: Network,
     name: str,
@@ -29,7 +32,7 @@ async def fetch_child_by_name(
         rv = await list_(network, q=query, fields=fields)
     except ClientResponseError as e:
         if e.status == 400:
-            getLogger(__name__).debug(f"invalid query string: {query}")
+            _L.debug(f"invalid query string: {query}")
             raise ValueError(name) from e
         if e.status == 404:
             raise NodeNotFoundError(parent_id) from e

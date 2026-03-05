@@ -11,6 +11,9 @@ from ._network import Network
 from .exceptions import DownloadAbusiveFileError
 
 
+_L = getLogger(__name__)
+
+
 class GoogleReadableFile(ReadableFile):
     def __init__(self, network: Network, node: Node) -> None:
         self._network = network
@@ -74,7 +77,7 @@ class GoogleReadableFile(ReadableFile):
                 yield response
         except DownloadAbusiveFileError:
             # FIXME automatically accept abuse files for now
-            getLogger(__name__).warning(f"{self._node.id} is an abusive file")
+            _L.warning(f"{self._node.id} is an abusive file")
             async with dl(acknowledge_abuse=True) as response:
                 yield response
 
