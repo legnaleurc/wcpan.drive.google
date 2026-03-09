@@ -444,7 +444,7 @@ wheels = [
 
 [[package]]
 name = "wcpan-drive-google"
-version = "9.1.7"
+version = "9.1.8"
 source = { editable = "." }
 dependencies = [
     { name = "aiohttp" },
