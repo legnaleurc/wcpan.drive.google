@@ -7,7 +7,7 @@ from typing import TypedDict
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 from aiohttp import ClientResponseError, ClientSession
-from wcpan.drive.core.exceptions import UnauthorizedError
+from wcpan.drive.core.exceptions import AuthenticationError as CoreAuthenticationError
 
 from .exceptions import AuthenticationError, CredentialFileError, TokenFileError
 
@@ -173,10 +173,10 @@ class OAuth2Manager(object):
             return
 
         if not self.access_token:
-            raise UnauthorizedError()
+            raise CoreAuthenticationError()
 
         if not self.refresh_token:
-            raise UnauthorizedError()
+            raise CoreAuthenticationError()
 
         async with self._guard():
             try:
