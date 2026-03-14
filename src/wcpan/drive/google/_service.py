@@ -170,10 +170,22 @@ class GoogleDriveFileService(FileService):
         await empty_trash(self._network)
 
     @override
-    async def delete(self, node: Node) -> None:
-        from ._api.files import delete
+    async def delete(self, node: Node, *, permanent: bool = False) -> None:
+        if permanent:
+            from ._api.files import delete
 
-        await delete(self._network, node.id)
+            await delete(self._network, node.id)
+        else:
+            from ._api.files import update
+
+            await update(self._network, node.id, trashed=True)
+
+    @override
+    async def restore(self, node: Node) -> Node:
+        from ._api.files import update
+
+        await update(self._network, node.id, trashed=False)
+        return await fetch_node_by_id(self._network, node.id)
 
     @override
     async def move(
@@ -182,7 +194,6 @@ class GoogleDriveFileService(FileService):
         *,
         new_parent: Node | None,
         new_name: str | None,
-        trashed: bool | None,
     ) -> Node:
         if not node.parent_id:
             raise ValueError("cannot move root node")
@@ -190,12 +201,10 @@ class GoogleDriveFileService(FileService):
         parent_id = node.parent_id if not new_parent else new_parent.id
         name = node.name if not new_name else new_name
 
-        # no need to check conflict for trash mutation
-        if trashed is None:
-            # make sure it does not conflict to existing node
-            new_node = await fetch_child_by_name(self._network, name, parent_id)
-            if new_node:
-                raise NodeExistsError(new_node)
+        # make sure it does not conflict to existing node
+        new_node = await fetch_child_by_name(self._network, name, parent_id)
+        if new_node:
+            raise NodeExistsError(new_node)
 
         file_id = node.id
         name = new_name
@@ -213,7 +222,6 @@ class GoogleDriveFileService(FileService):
             name=name,
             add_parents=add_parents,
             remove_parents=remove_parents,
-            trashed=trashed,
         )
         new_node = await fetch_node_by_id(self._network, node.id)
         return new_node
