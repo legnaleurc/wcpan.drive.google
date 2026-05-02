@@ -89,8 +89,8 @@ def node_from_api(data: GoogleFileDict) -> Node:
 
     is_folder = data["mimeType"] == FOLDER_MIME_TYPE
 
-    ctime = datetime.fromisoformat(data["createdTime"])
-    mtime = datetime.fromisoformat(data["modifiedTime"])
+    created_time = datetime.fromisoformat(data["createdTime"])
+    modified_time = datetime.fromisoformat(data["modifiedTime"])
 
     size = int(data.get("size", "0"))
     hash_ = data.get("md5Checksum", "")
@@ -131,8 +131,9 @@ def node_from_api(data: GoogleFileDict) -> Node:
         id=id_,
         name=data["name"],
         is_trashed=data["trashed"],
-        ctime=ctime,
-        mtime=mtime,
+        created_time=created_time,
+        modified_time=modified_time,
+        changed_time=modified_time,
         parent_id=parent_id,
         is_directory=is_folder,
         mime_type="" if is_folder else data["mimeType"],
