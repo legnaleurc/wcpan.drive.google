@@ -1,6 +1,6 @@
 [project]
 name = "wcpan-drive-google"
-version = "10.0.1"
+version = "11.0.0"
 description = "Google Drive driver for wcpan.drive"
 readme = "README.md"
 license = {text = "MIT"}
@@ -17,7 +17,7 @@ classifiers = [
 ]
 dependencies = [
     "aiohttp>=3.13.3,<4.0.0",
-    "wcpan-drive-core>=5.0.6,<6.0.0",
+    "wcpan-drive-core>=6.0.0,<7.0.0",
 ]
 
 [dependency-groups]
